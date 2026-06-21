@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 venv/
+user_memory.json
+finmate.db
+*.db

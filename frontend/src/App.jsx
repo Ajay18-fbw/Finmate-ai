@@ -3,6 +3,27 @@ import axios from "axios"
 
 const API = "http://localhost:8000"
 
+// ─── Auth helpers ─────────────────────────────────────────────────
+const getToken  = ()    => { try { return localStorage.getItem("fm-token") }  catch { return null } }
+const setToken  = (t)   => { try { localStorage.setItem("fm-token", t) }      catch {} }
+const clearAuth = ()    => { try { localStorage.removeItem("fm-token"); localStorage.removeItem("fm-user") } catch {} }
+const getUser   = ()    => { try { return JSON.parse(localStorage.getItem("fm-user") || "null") } catch { return null } }
+const setUser   = (u)   => { try { localStorage.setItem("fm-user", JSON.stringify(u)) } catch {} }
+
+// Axios auth interceptor — auto-attach token to every request
+axios.interceptors.request.use(cfg => {
+  const token = getToken()
+  if (token) cfg.headers["Authorization"] = `Bearer ${token}`
+  return cfg
+})
+axios.interceptors.response.use(
+  r => r,
+  err => {
+    if (err.response?.status === 401) { clearAuth(); window.location.reload() }
+    return Promise.reject(err)
+  }
+)
+
 // ─── Fonts + Base Styles ─────────────────────────────────────────
 if (typeof document !== "undefined" && !document.getElementById("fm-styles")) {
   const link = document.createElement("link")
@@ -338,6 +359,158 @@ function CandlestickChart({ chartData, T }) {
         ))}
       </div>
     </div>
+  )
+}
+
+
+// ─── AUTH SCREEN ──────────────────────────────────────────────────
+function AuthScreen({ onAuth, T }) {
+  const [mode, setMode]       = useState("login")   // "login" | "register"
+  const [name, setName]       = useState("")
+  const [email, setEmail]     = useState("")
+  const [password, setPass]   = useState("")
+  const [showPass, setShowP]  = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState("")
+  const [success, setSuccess] = useState("")
+
+  const submit = async () => {
+    setError(""); setSuccess("")
+    if (!email.trim() || !password.trim()) { setError("Email and password are required"); return }
+    if (mode === "register" && !name.trim()) { setError("Name is required"); return }
+    if (password.length < 6) { setError("Password must be at least 6 characters"); return }
+
+    setLoading(true)
+    try {
+      const endpoint = mode === "login" ? "/auth/login" : "/auth/register"
+      const payload  = mode === "login"
+        ? { email: email.trim(), password }
+        : { name: name.trim(), email: email.trim(), password }
+
+      const r = await axios.post(`${API}${endpoint}`, payload)
+      setToken(r.data.token)
+      setUser(r.data.user)
+      if (mode === "register") setSuccess("Account created! Welcome " + r.data.user.name)
+      setTimeout(() => onAuth(r.data.user), 500)
+    } catch (err) {
+      const raw = err.response?.data?.detail || ""
+      if (!raw || raw.includes("truncate") || raw.includes("bcrypt") || raw.includes("72")) {
+        setError("Something went wrong. Please try again.")
+      } else if (raw.includes("already registered")) {
+        setError("This email is already registered. Please sign in.")
+      } else if (raw.includes("Invalid email or password")) {
+        setError("Incorrect email or password. Please try again.")
+      } else {
+        setError(raw)
+      }
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: T.bgSub, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, transition: "background 0.25s" }}>
+      <div className="scale-in" style={{ width: "100%", maxWidth: 420 }}>
+
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>💰</div>
+          <div style={{ fontSize: 22, fontWeight: 600, color: T.text, marginBottom: 4 }}>
+            FinMate<span style={{ color: T.accent }}>AI</span>
+          </div>
+          <div style={{ fontSize: 13, color: T.textSub }}>India's AI-powered CA + Broker — Personal Finance Advisor</div>
+        </div>
+
+        {/* Card */}
+        <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 16, padding: "28px 28px 24px", boxShadow: T.shadow }}>
+
+          {/* Mode toggle */}
+          <div style={{ display: "flex", background: T.bgSub, borderRadius: 10, padding: 3, marginBottom: 24, border: `1px solid ${T.border}` }}>
+            {[["login", "Sign In"], ["register", "Create Account"]].map(([m, label]) => (
+              <button key={m} onClick={() => { setMode(m); setError(""); setSuccess("") }}
+                style={{ flex: 1, padding: "9px", borderRadius: 8, fontSize: 13, fontWeight: 500, border: mode === m ? `1px solid ${T.border}` : "none", background: mode === m ? T.bg : "transparent", color: mode === m ? T.text : T.textSub, transition: "all 0.15s", boxShadow: mode === m ? T.shadow : "none" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Fields */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {mode === "register" && (
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: T.textSub, marginBottom: 6 }}>Full Name</label>
+                <AuthInput value={name} onChange={setName} placeholder="e.g. Ajay Singh" T={T} onEnter={submit} />
+              </div>
+            )}
+            <div>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: T.textSub, marginBottom: 6 }}>Email Address</label>
+              <AuthInput value={email} onChange={setEmail} placeholder="you@example.com" type="email" T={T} onEnter={submit} />
+            </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 500, color: T.textSub }}>Password</label>
+                {mode === "login" && <span style={{ fontSize: 11, color: T.accent, cursor: "pointer" }}>Forgot password?</span>}
+              </div>
+              <div style={{ position: "relative" }}>
+                <AuthInput value={password} onChange={setPass} placeholder="Min 6 characters" type={showPass ? "text" : "password"} T={T} onEnter={submit} />
+                <button onClick={() => setShowP(!showPass)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 16, color: T.textTer, background: "none", border: "none", cursor: "pointer" }}>
+                  {showPass ? "🙈" : "👁️"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Error / Success */}
+          {error && (
+            <div className="fade-in" style={{ marginTop: 14, padding: "10px 14px", background: T.redBg, border: `1px solid ${T.redBd}`, borderRadius: 8, fontSize: 12, color: T.red }}>
+              ❌ {error}
+            </div>
+          )}
+          {success && (
+            <div className="fade-in" style={{ marginTop: 14, padding: "10px 14px", background: T.greenBg, border: `1px solid ${T.greenBd}`, borderRadius: 8, fontSize: 12, color: T.green }}>
+              ✅ {success}
+            </div>
+          )}
+
+          {/* Submit */}
+          <button onClick={submit} disabled={loading}
+            style={{ width: "100%", marginTop: 20, padding: "12px", background: loading ? T.textTer : T.accent, color: "#fff", borderRadius: 10, fontSize: 14, fontWeight: 500, border: "none", cursor: loading ? "not-allowed" : "pointer", transition: "background 0.15s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            {loading
+              ? <><ThinkDots /> {mode === "login" ? "Signing in..." : "Creating account..."}</>
+              : mode === "login" ? "Sign In →" : "Create Account →"
+            }
+          </button>
+
+          {/* Terms */}
+          {mode === "register" && (
+            <div style={{ fontSize: 11, color: T.textTer, textAlign: "center", marginTop: 12, lineHeight: 1.6 }}>
+              By creating an account, you acknowledge this app is a financial tool, not registered investment advice.
+            </div>
+          )}
+        </div>
+
+        {/* Dark mode toggle on auth screen */}
+        <div style={{ textAlign: "center", marginTop: 20 }}>
+          <button onClick={() => {
+            const isDark = document.body.style.background === THEMES.dark.bgSub
+            // handled by parent via prop — just visual hint here
+          }} style={{ fontSize: 12, color: T.textTer, background: "none", border: "none", cursor: "pointer" }}>
+            Powered by LLaMA 3.3 70B · Data via Yahoo Finance
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AuthInput({ value, onChange, placeholder, type = "text", T, onEnter }) {
+  const [foc, setFoc] = useState(false)
+  return (
+    <input type={type} value={value}
+      onChange={e => onChange(e.target.value)}
+      onKeyDown={e => e.key === "Enter" && onEnter?.()}
+      onFocus={() => setFoc(true)} onBlur={() => setFoc(false)}
+      placeholder={placeholder}
+      style={{ width: "100%", padding: "11px 14px", fontSize: 13, border: `1px solid ${foc ? T.accent : T.borderEm}`, boxShadow: foc ? `0 0 0 3px ${T.accent}22` : "none", borderRadius: 8, background: T.bg, color: T.text, outline: "none", transition: "border-color 0.15s, box-shadow 0.15s" }}
+    />
   )
 }
 
@@ -1361,6 +1534,22 @@ function ComparePage({ T, analyzeStock, setTab }) {
 
 // ─── ROOT APP ─────────────────────────────────────────────────────
 export default function App() {
+  // ── Auth state ──
+  const [authUser, setAuthUser] = useState(() => getUser())
+  const [authChecked, setAuthChecked] = useState(false)
+
+  // Verify token on mount
+  useEffect(() => {
+    const token = getToken()
+    if (!token) { setAuthChecked(true); return }
+    axios.get(`${API}/auth/me`)
+      .then(r => { setAuthUser(r.data.user); setUser(r.data.user); setAuthChecked(true) })
+      .catch(() => { clearAuth(); setAuthUser(null); setAuthChecked(true) })
+  }, [])
+
+  const handleAuth = (user) => { setAuthUser(user) }
+  const handleLogout = () => { clearAuth(); setAuthUser(null) }
+
   // Dark mode
   const [darkMode, setDarkMode] = useState(() => {
     try { return localStorage.getItem("fm-dark") === "true" } catch { return false }
@@ -1521,6 +1710,35 @@ AI Report Summary: ${stockReport ? stockReport.substring(0, 500) + "..." : "N/A"
 
   const tabs = [{ key: "home", label: "Home", icon: "🏠" }, { key: "chat", label: "AI Chat", icon: "💬" }, { key: "stocks", label: "Stocks", icon: "📊" }, { key: "news", label: "News", icon: "📰" }, { key: "compare", label: "Compare", icon: "⚖️" }, { key: "tax", label: "Tax", icon: "🧾" }, { key: "sip", label: "SIP", icon: "📈" }]
 
+  // Loading check
+  if (!authChecked) {
+    return (
+      <div style={{ minHeight: "100vh", background: T.bgSub, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>💰</div>
+          <div style={{ fontSize: 14, color: T.textSub }}>Loading FinMate AI...</div>
+        </div>
+      </div>
+    )
+  }
+
+  // Not logged in — show auth screen
+  if (!authUser) {
+    return (
+      <div style={{ background: T.bgSub, minHeight: "100vh", transition: "background 0.25s" }}>
+        <div style={{ position: "fixed", top: 16, right: 16, zIndex: 999 }}>
+          <button onClick={() => setDarkMode(!darkMode)}
+            style={{ width: 36, height: 20, borderRadius: 12, background: darkMode ? T.accent : T.bgTer, border: `1px solid ${T.borderEm}`, position: "relative", transition: "background 0.25s", cursor: "pointer" }}>
+            <span style={{ position: "absolute", top: 2, left: darkMode ? 17 : 2, width: 14, height: 14, borderRadius: "50%", background: darkMode ? "#fff" : T.textSub, transition: "left 0.2s", fontSize: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {darkMode ? "🌙" : "☀️"}
+            </span>
+          </button>
+        </div>
+        <AuthScreen onAuth={handleAuth} T={T} />
+      </div>
+    )
+  }
+
   return (
     <div style={{ background: T.bgSub, minHeight: "100vh", color: T.text, transition: "background 0.25s, color 0.25s" }}>
 
@@ -1546,6 +1764,13 @@ AI Report Summary: ${stockReport ? stockReport.substring(0, 500) + "..." : "N/A"
 
         {/* Right controls */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* User avatar + name */}
+          <div className="desktop-only" style={{ alignItems: "center", gap: 8 }}>
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: T.accentBg, border: `1px solid ${T.accent}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: T.accent }}>
+              {authUser?.name?.charAt(0)?.toUpperCase() || "U"}
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 500, color: T.textSub }}>{authUser?.name?.split(" ")[0]}</span>
+          </div>
           {/* Dark mode toggle */}
           <button onClick={() => setDarkMode(!darkMode)}
             title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
@@ -1562,6 +1787,14 @@ AI Report Summary: ${stockReport ? stockReport.substring(0, 500) + "..." : "N/A"
               {riskProfile === "conservative" ? "🛡️" : riskProfile === "moderate" ? "⚖️" : "🚀"} {riskProfile}
             </button>
           )}
+
+          {/* Logout */}
+          <button onClick={handleLogout} className="desktop-only"
+            style={{ fontSize: 12, padding: "5px 12px", borderRadius: 8, border: `1px solid ${T.border}`, color: T.textSub, background: T.bgSub, cursor: "pointer", transition: "all 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.red; e.currentTarget.style.color = T.red }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textSub }}>
+            Sign out
+          </button>
 
           {/* Mobile hamburger */}
           <button className="mobile-only" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} style={{ fontSize: 20, padding: 4, color: T.textSub }}>
@@ -1582,6 +1815,9 @@ AI Report Summary: ${stockReport ? stockReport.substring(0, 500) + "..." : "N/A"
           <div style={{ marginTop: "auto", padding: "12px 0" }}>
             <button onClick={() => { setDarkMode(!darkMode); setMobileMenuOpen(false) }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 10, fontSize: 14, color: T.text, width: "100%" }}>
               <span style={{ fontSize: 20 }}>{darkMode ? "☀️" : "🌙"}</span> {darkMode ? "Light mode" : "Dark mode"}
+            </button>
+            <button onClick={() => { handleLogout(); setMobileMenuOpen(false) }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 10, fontSize: 14, color: T.red, width: "100%" }}>
+              <span style={{ fontSize: 20 }}>🚪</span> Sign out ({authUser?.name})
             </button>
             <button onClick={() => { setShowRiskModal(true); setMobileMenuOpen(false) }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 10, fontSize: 14, color: T.text, width: "100%" }}>
               <span style={{ fontSize: 20 }}>📋</span> Risk Profile: <strong style={{ textTransform: "capitalize", marginLeft: 4 }}>{riskProfile || "not set"}</strong>

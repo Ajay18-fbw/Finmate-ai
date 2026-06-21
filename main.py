@@ -1,20 +1,25 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional
 from stock_data import get_stock_data
 from ai_report import generate_report
 from tax_calculator import calculate_tax
 from sip_calculator import calculate_sip, calculate_goal_sip, get_sip_suggestions
+from auth import (
+    init_db, get_db, hash_password, verify_password,
+    create_token, get_current_user, get_current_user_optional,
+    load_user_profile, save_user_profile
+)
 from groq import Groq
 from dotenv import load_dotenv
 import yfinance as yf
-import json, os, math
+import json, os, math, sqlite3
 
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-app = FastAPI(title="FinMate AI", version="2.0")
+app = FastAPI(title="FinMate AI", version="3.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,10 +28,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MEMORY_FILE = "user_memory.json"
+# ── Init DB on startup ────────────────────────────────────────────
+@app.on_event("startup")
+def startup():
+    init_db()
 
+# ── STOCK_DB ──────────────────────────────────────────────────────
 STOCK_DB = {
-    # Indian Stocks
     "reliance": ("RELIANCE.NS", "Reliance Industries"),
     "tcs": ("TCS.NS", "Tata Consultancy Services"),
     "tata consultancy": ("TCS.NS", "Tata Consultancy Services"),
@@ -60,7 +68,6 @@ STOCK_DB = {
     "paytm": ("PAYTM.NS", "Paytm"),
     "nykaa": ("NYKAA.NS", "Nykaa"),
     "dmart": ("DMART.NS", "DMart"),
-    # US Stocks
     "apple": ("AAPL", "Apple Inc."),
     "aapl": ("AAPL", "Apple Inc."),
     "microsoft": ("MSFT", "Microsoft Corporation"),
@@ -76,25 +83,21 @@ STOCK_DB = {
     "nvda": ("NVDA", "NVIDIA Corporation"),
     "netflix": ("NFLX", "Netflix Inc."),
     "uber": ("UBER", "Uber Technologies"),
-    # Crypto
     "bitcoin": ("BTC-USD", "Bitcoin"),
     "btc": ("BTC-USD", "Bitcoin"),
     "ethereum": ("ETH-USD", "Ethereum"),
     "eth": ("ETH-USD", "Ethereum"),
     "dogecoin": ("DOGE-USD", "Dogecoin"),
-    # Forex
     "usd inr": ("INR=X", "USD/INR"),
     "dollar rupee": ("INR=X", "USD/INR"),
     "usd jpy": ("JPY=X", "USD/JPY"),
     "eur usd": ("EURUSD=X", "EUR/USD"),
     "gbp usd": ("GBPUSD=X", "GBP/USD"),
-    # Commodities
     "gold": ("GC=F", "Gold Futures"),
     "silver": ("SI=F", "Silver Futures"),
     "crude oil": ("CL=F", "Crude Oil Futures"),
     "oil": ("CL=F", "Crude Oil Futures"),
     "natural gas": ("NG=F", "Natural Gas Futures"),
-    # Indices
     "nifty": ("^NSEI", "Nifty 50"),
     "nifty 50": ("^NSEI", "Nifty 50"),
     "sensex": ("^BSESN", "BSE Sensex"),
@@ -103,7 +106,6 @@ STOCK_DB = {
     "dow jones": ("^DJI", "Dow Jones"),
     "nasdaq": ("^IXIC", "Nasdaq Composite"),
 }
-
 
 def clean_data(obj):
     if isinstance(obj, dict):
@@ -114,59 +116,152 @@ def clean_data(obj):
         return None
     return obj
 
-
 def resolve_symbol(query: str):
     q = query.lower().strip()
+    # Direct match
     if q in STOCK_DB:
         return STOCK_DB[q][0], STOCK_DB[q][1]
+    # Partial match
     for key, (symbol, name) in STOCK_DB.items():
         if q in key or key in q:
             return symbol, name
-    return query.upper(), query.upper()
+    # Already a valid symbol (e.g. MARUTI.NS passed directly)
+    upper = query.upper()
+    return upper, upper
 
+# ─── Pydantic Models ──────────────────────────────────────────────
+class RegisterRequest(BaseModel):
+    name    : str
+    email   : str
+    password: str
 
-# ── Updated ChatRequest with stock context + risk profile ──
+class LoginRequest(BaseModel):
+    email   : str
+    password: str
+
 class ChatRequest(BaseModel):
-    message         : str
-    name            : str = ""
-    salary          : int = 0
-    expenses        : int = 0
-    extra_context   : str = ""          # stock data context from frontend
-    risk_profile    : str = "moderate"  # conservative / moderate / aggressive
+    message      : str
+    salary       : int = 0
+    expenses     : int = 0
+    extra_context: str = ""
+    risk_profile : str = "moderate"
 
+class ProfileUpdate(BaseModel):
+    salary      : int = 0
+    expenses    : int = 0
+    risk_profile: str = "moderate"
 
-def load_profile():
-    if os.path.exists(MEMORY_FILE):
-        with open(MEMORY_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {"name": "", "salary": 0, "expenses": 0, "savings": 0, "goals": [], "conversation": []}
+# ─── AUTH ENDPOINTS ───────────────────────────────────────────────
+@app.post("/auth/register")
+def register(req: RegisterRequest):
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    if len(req.name.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
 
+    conn = get_db()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM users WHERE email = ?", (req.email.lower().strip(),)
+        ).fetchone()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
 
-def save_profile(profile):
-    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(profile, f, ensure_ascii=False, indent=2)
+        hashed = hash_password(req.password)
+        cursor = conn.execute(
+            "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
+            (req.name.strip(), req.email.lower().strip(), hashed)
+        )
+        user_id = cursor.lastrowid
+        conn.commit()
 
+        # Create default profile
+        save_user_profile(user_id, {
+            "salary": 0, "expenses": 0, "goals": [],
+            "risk_profile": "moderate", "conversation": [], "watchlist": []
+        })
 
+        token = create_token(user_id, req.email.lower().strip(), req.name.strip())
+        return {
+            "success": True,
+            "token"  : token,
+            "user"   : {"id": user_id, "name": req.name.strip(), "email": req.email.lower().strip()}
+        }
+    except HTTPException:
+        raise
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@app.post("/auth/login")
+def login(req: LoginRequest):
+    conn = get_db()
+    try:
+        user = conn.execute(
+            "SELECT * FROM users WHERE email = ?", (req.email.lower().strip(),)
+        ).fetchone()
+
+        if not user or not verify_password(req.password, user["password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        # Update last login
+        conn.execute(
+            "UPDATE users SET last_login = datetime('now') WHERE id = ?", (user["id"],)
+        )
+        conn.commit()
+
+        token = create_token(user["id"], user["email"], user["name"])
+        return {
+            "success": True,
+            "token"  : token,
+            "user"   : {"id": user["id"], "name": user["name"], "email": user["email"]}
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@app.get("/auth/me")
+def get_me(current_user: dict = Depends(get_current_user)):
+    profile = load_user_profile(current_user["user_id"])
+    return {
+        "success": True,
+        "user"   : current_user,
+        "profile": profile
+    }
+
+@app.post("/auth/update-profile")
+def update_profile(req: ProfileUpdate, current_user: dict = Depends(get_current_user)):
+    profile = load_user_profile(current_user["user_id"])
+    profile["salary"]       = req.salary
+    profile["expenses"]     = req.expenses
+    profile["risk_profile"] = req.risk_profile
+    save_user_profile(current_user["user_id"], profile)
+    return {"success": True, "profile": profile}
+
+# ─── CORE ENDPOINTS (now per-user) ───────────────────────────────
 @app.get("/")
 def home():
-    return {"message": "FinMate AI v2.0 Running! 🚀"}
-
+    return {"message": "FinMate AI v3.0 — with Auth 🔐"}
 
 @app.get("/search/{query}")
 def search_stocks(query: str):
     q = query.lower().strip()
-    results = []
-    seen = set()
-
+    results, seen = [], set()
     for key, (symbol, name) in STOCK_DB.items():
         if (q in key or q in name.lower()) and symbol not in seen:
             results.append({
                 "symbol"  : symbol,
                 "name"    : name,
-                "exchange": "NSE" if ".NS" in symbol else "BSE" if ".BO" in symbol else "CRYPTO" if "-USD" in symbol else "US"
+                "exchange": "NSE" if ".NS" in symbol else "BSE" if ".BO" in symbol
+                            else "CRYPTO" if "-USD" in symbol else "US"
             })
             seen.add(symbol)
-
     if len(results) < 3:
         try:
             search = yf.Search(query, max_results=8)
@@ -174,14 +269,11 @@ def search_stocks(query: str):
                 symbol = item.get("symbol", "")
                 name   = item.get("shortname") or item.get("longname") or symbol
                 if symbol and symbol not in seen:
-                    exchange = item.get("exchange", "US")
-                    results.append({"symbol": symbol, "name": name, "exchange": exchange})
+                    results.append({"symbol": symbol, "name": name, "exchange": item.get("exchange", "US")})
                     seen.add(symbol)
         except Exception as e:
             print(f"yfinance search error: {e}")
-
     return {"query": query, "results": results[:8]}
-
 
 @app.get("/analyze/{query}")
 def analyze_stock(query: str):
@@ -199,105 +291,79 @@ def analyze_stock(query: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# ── UPGRADED /chat — CA + Broker level AI ──
 @app.post("/chat")
-def chat(req: ChatRequest):
+def chat(req: ChatRequest, current_user: dict = Depends(get_current_user)):
     try:
-        profile = load_profile()
-        if req.name:     profile["name"]     = req.name
+        profile = load_user_profile(current_user["user_id"])
         if req.salary:   profile["salary"]   = req.salary
         if req.expenses: profile["expenses"] = req.expenses
-        profile["savings"] = max(0, profile["salary"] - profile["expenses"])
+        profile["savings"]      = max(0, profile["salary"] - profile["expenses"])
+        risk_profile            = req.risk_profile or profile.get("risk_profile", "moderate")
+        profile["risk_profile"] = risk_profile
 
-        # Risk profile label
-        risk_emoji = {"conservative": "🛡️", "moderate": "⚖️", "aggressive": "🚀"}.get(req.risk_profile, "⚖️")
+        risk_emoji = {"conservative": "🛡️", "moderate": "⚖️", "aggressive": "🚀"}.get(risk_profile, "⚖️")
 
-        # Stock context block (injected from frontend when user analyzed a stock)
         stock_block = ""
         if req.extra_context and req.extra_context.strip():
-            stock_block = f"""
-════════════════════════════════════
-LIVE STOCK DATA (USE THIS FOR STOCK QUESTIONS):
-{req.extra_context.strip()}
-════════════════════════════════════"""
+            stock_block = f"\n════════════════════════════════════\nLIVE STOCK DATA:\n{req.extra_context.strip()}\n════════════════════════════════════"
 
-        system_prompt = f"""You are FinMate AI — a dual-expert financial advisor with two roles combined:
+        system_prompt = f"""You are FinMate AI — a dual-expert financial advisor:
 
-🏦 ROLE 1 — CHARTERED ACCOUNTANT (CA):
-• Tax planning: 80C, 80D, HRA, NPS, capital gains, ITR
-• Old vs New tax regime comparison with exact numbers
-• Salary structuring, Form 16, advance tax
-• ELSS, PPF, NSC, insurance for tax saving
+🏦 CA EXPERTISE: Tax planning (80C/80D/HRA/NPS), ITR, old vs new regime, salary structuring
+📈 BROKER EXPERTISE: Stock entry/exit/stop-loss/target, portfolio allocation, MF selection, SIP strategy
 
-📈 ROLE 2 — SEBI-EXPERIENCED STOCK BROKER:
-• Stock entry price, stop loss, and target price (1M / 3M / 6M)
-• Portfolio allocation % based on risk profile
-• Technical signals: RSI, MACD, MA50/200 interpretation
-• Mutual fund selection with specific fund names and expected CAGR
-• SIP strategy and goal-based investing
-
-USER PROFILE:
-• Name        : {profile['name'] or 'Investor'}
+USER:
+• Name        : {current_user['name']}
 • Salary      : ₹{profile['salary']:,}/month
 • Expenses    : ₹{profile['expenses']:,}/month
-• Savings     : ₹{profile['savings']:,}/month
-• Goals       : {profile['goals'] or 'Not mentioned yet'}
-• Risk Profile: {risk_emoji} {req.risk_profile.upper()}
+• Savings     : ₹{max(0, profile['salary'] - profile['expenses']):,}/month
+• Goals       : {profile.get('goals') or 'Not set'}
+• Risk Profile: {risk_emoji} {risk_profile.upper()}
 {stock_block}
 
-RULES — STRICTLY FOLLOW:
-1. Always give SPECIFIC ₹ amounts, % figures — never say "it depends" without a number
-2. For stocks: always mention entry price, stop loss, target price, and position size %
-3. For tax: calculate exact savings, cite the specific IT section
-4. For SIP/MF: suggest real fund names (e.g. Mirae Asset Large Cap, Parag Parikh Flexi Cap)
-5. Adjust advice strictly to risk profile:
-   → CONSERVATIVE 🛡️ : FD, PPF, large-cap index funds, debt funds only
-   → MODERATE ⚖️     : 60% equity (index + large-cap) + 40% debt, balanced funds
-   → AGGRESSIVE 🚀   : direct stocks, small-cap, sectoral funds, up to 10% crypto ok
-6. Language: Hinglish (Hindi + English mix) — natural, like a trusted family advisor
-7. Structure: use emoji bullets for clarity, keep sections short
-8. End EVERY response with "📌 Next Step:" and one specific action
-9. If stock context is available above — USE THAT EXACT DATA to answer stock questions
-10. For decisions involving more than ₹5 lakh: add "⚠️ Kisi SEBI registered advisor se ek baar confirm zaroor karna"
-11. Max 300 words — direct, confident, actionable. No fluff.
-
-TONE: Like a trusted CA friend who also trades stocks — confident, specific, honest about risks.
+RULES:
+1. Specific ₹ amounts + % always — never vague
+2. Stocks: entry price, stop loss, target (1M/3M/6M), position size %
+3. Tax: exact savings + IT section (80C etc.)
+4. MF: real fund names + expected CAGR
+5. Risk matching: Conservative=FD/PPF/debt | Moderate=60:40 equity:debt | Aggressive=stocks/small-cap
+6. Hinglish — conversational, like trusted CA friend
+7. End with "📌 Next Step:" always
+8. >₹5L decisions: add "⚠️ SEBI registered advisor se confirm karo"
+9. If stock data above → use EXACT numbers
+10. Max 300 words — direct, no fluff
 """
-
-        messages_list = [{"role": "system", "content": system_prompt}]
-        messages_list.extend(profile["conversation"][-12:])
-        messages_list.append({"role": "user", "content": req.message})
+        msgs = [{"role": "system", "content": system_prompt}]
+        msgs.extend(profile["conversation"][-12:])
+        msgs.append({"role": "user", "content": req.message})
 
         response = client.chat.completions.create(
-            model       = "llama-3.3-70b-versatile",
-            messages    = messages_list,
-            max_tokens  = 520,
-            temperature = 0.65
+            model="llama-3.3-70b-versatile",
+            messages=msgs, max_tokens=520, temperature=0.65
         )
-
         reply = response.choices[0].message.content.strip()
+
         profile["conversation"].append({"role": "user",      "content": req.message})
         profile["conversation"].append({"role": "assistant", "content": reply})
-        save_profile(profile)
-        return {"success": True, "reply": reply}
+        save_user_profile(current_user["user_id"], profile)
 
+        return {"success": True, "reply": reply}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.get("/profile")
-def get_profile():
-    return load_profile()
-
-
 @app.post("/goals")
-def add_goal(goal: dict):
-    profile = load_profile()
+def add_goal(goal: dict, current_user: dict = Depends(get_current_user)):
+    profile = load_user_profile(current_user["user_id"])
     profile["goals"].append(goal.get("goal", ""))
-    save_profile(profile)
+    save_user_profile(current_user["user_id"], profile)
     return {"success": True, "goals": profile["goals"]}
 
+@app.post("/watchlist/save")
+def save_watchlist(data: dict, current_user: dict = Depends(get_current_user)):
+    profile = load_user_profile(current_user["user_id"])
+    profile["watchlist"] = data.get("watchlist", [])
+    save_user_profile(current_user["user_id"], profile)
+    return {"success": True}
 
 @app.post("/tax")
 def tax_calculator(data: dict):
@@ -311,7 +377,6 @@ def tax_calculator(data: dict):
         return {"success": True, "result": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/sip")
 def sip_calculator(data: dict):
@@ -329,14 +394,10 @@ def sip_calculator(data: dict):
             annual_return      = data.get("annual_return", 12),
             years              = data.get("years", 10)
         )
-        suggestions = get_sip_suggestions(
-            data.get("monthly_investment", 0),
-            data.get("years", 10)
-        )
+        suggestions = get_sip_suggestions(data.get("monthly_investment", 0), data.get("years", 10))
         return {"success": True, "mode": "calculate", "result": result, "suggestions": suggestions}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/ticker")
 def get_ticker():
@@ -366,18 +427,14 @@ def get_ticker():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# ── NEWS endpoint ──────────────────────────────────────────────────
 @app.get("/news/{symbol}")
 def get_news(symbol: str):
     try:
         import feedparser, urllib.parse, datetime
-
         feeds_to_try = [
             f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={symbol}&region=US&lang=en-US",
             f"https://news.google.com/rss/search?q={urllib.parse.quote(symbol)}+stock+finance&hl=en-IN&gl=IN&ceid=IN:en",
         ]
-
         articles, seen_titles = [], set()
         for feed_url in feeds_to_try:
             try:
@@ -404,27 +461,22 @@ def get_news(symbol: str):
                     break
             except:
                 continue
-
         if not articles:
             return {"success": True, "symbol": symbol, "articles": []}
-
         summaries = []
         for art in articles[:6]:
             try:
-                prompt = f"""News headline: "{art['title']}"
-Snippet: "{art['summary']}"
-
-Reply in EXACTLY this format:
+                prompt = f"""News: "{art['title']}"
+Reply EXACTLY:
 SENTIMENT: Positive
-SUMMARY: 1 line Hinglish mein investor ke liye matlab (max 15 words)"""
+SUMMARY: 1 line Hinglish investor ke liye (max 15 words)"""
                 resp = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[{"role": "user", "content": prompt}],
                     max_tokens=80, temperature=0.4
                 )
-                text      = resp.choices[0].message.content.strip()
-                sentiment = "Neutral"
-                ai_sum    = art["title"]
+                text = resp.choices[0].message.content.strip()
+                sentiment, ai_sum = "Neutral", art["title"]
                 for line in text.split("\n"):
                     if line.startswith("SENTIMENT:"):
                         s = line.replace("SENTIMENT:", "").strip()
@@ -435,13 +487,10 @@ SUMMARY: 1 line Hinglish mein investor ke liye matlab (max 15 words)"""
                 summaries.append({**art, "sentiment": sentiment, "ai_summary": ai_sum})
             except:
                 summaries.append({**art, "sentiment": "Neutral", "ai_summary": art["title"]})
-
         return {"success": True, "symbol": symbol, "articles": summaries}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# ── COMPARE endpoint ───────────────────────────────────────────────
 @app.get("/compare/{sym1}/{sym2}")
 def compare_stocks(sym1: str, sym2: str):
     try:
@@ -452,19 +501,11 @@ def compare_stocks(sym1: str, sym2: str):
             if not data:
                 raise HTTPException(status_code=404, detail=f"{raw} not found")
             results[raw] = {"symbol": symbol, "company": company, "data": clean_data(data)}
-
         d1, d2 = results[sym1]["data"], results[sym2]["data"]
-        prompt = f"""Compare as a senior broker:
-
+        prompt = f"""Compare as senior broker:
 {d1.get('name')} ({sym1}): Price={d1.get('current_price')}, RSI={d1.get('rsi')}, MACD={d1.get('macd_signal')}, Trend={d1.get('trend')}, P/E={d1.get('pe_ratio')}, 1Y={d1.get('price_change_1y')}%
-
 {d2.get('name')} ({sym2}): Price={d2.get('current_price')}, RSI={d2.get('rsi')}, MACD={d2.get('macd_signal')}, Trend={d2.get('trend')}, P/E={d2.get('pe_ratio')}, 1Y={d2.get('price_change_1y')}%
-
-Hinglish mein max 120 words:
-1. Technical comparison
-2. Abhi kaun better hai aur kyon
-3. Last line must be: WINNER: [exact company name]"""
-
+Hinglish max 120 words. End with: WINNER: [company name]"""
         resp = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
@@ -474,17 +515,13 @@ Hinglish mein max 120 words:
         winner  = None
         vl      = verdict.lower()
         if "winner:" in vl:
-            after  = verdict[vl.index("winner:") + 7:].strip().split("\n")[0]
-            winner = after.strip()
-
+            winner = verdict[vl.index("winner:") + 7:].strip().split("\n")[0].strip()
         return {"success": True, "sym1": results[sym1], "sym2": results[sym2], "verdict": verdict, "winner": winner}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# ── WATCHLIST PRICES endpoint ──────────────────────────────────────
 @app.post("/watchlist/prices")
 def watchlist_prices(data: dict):
     try:

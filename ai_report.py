@@ -1,40 +1,101 @@
 from groq import Groq
 from dotenv import load_dotenv
-from stock_data import get_stock_data
 import os
 
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
-def generate_report(stock_data):
-    print("\nGenerating AI Report...")
+# ─── Trading Style Prompts ────────────────────────────────────────
+STYLE_CONTEXT = {
+    "intraday": {
+        "label"      : "Intraday ⚡",
+        "timeframe"  : "15min / 1hr candles",
+        "hold_period": "Same day — exit before market close",
+        "focus"      : """
+INTRADAY FOCUS:
+- Entry: exact price level for today's trade
+- Exit: same day target (don't hold overnight)
+- Stop Loss: very tight — max 0.5% to 1% below entry
+- Key levels: today's high/low, pre-market gaps, VWAP
+- Volume: high volume confirmation is must
+- Avoid: low liquidity stocks, news-heavy days without direction
+- Position size: max 5-10% of capital per trade (leverage risk)
+""",
+        "verdict_label": "TRADE TODAY",
+    },
+    "swing": {
+        "label"      : "Swing 🔄",
+        "timeframe"  : "Daily / 4hr candles",
+        "hold_period": "2 to 10 days",
+        "focus"      : """
+SWING TRADING FOCUS:
+- Entry: near support level or breakout confirmation
+- Hold: 2-10 days, can hold overnight
+- Stop Loss: 2-4% below entry (below key support)
+- Target: next resistance level (risk:reward min 1:2)
+- RSI: look for 40-60 range with bullish divergence
+- MACD crossover: strong signal for swing entries
+- Bollinger Bands: entry near lower band, exit near upper
+- Position size: 10-20% of capital per swing trade
+""",
+        "verdict_label": "SWING TRADE",
+    },
+    "positional": {
+        "label"      : "Positional 📅",
+        "timeframe"  : "Weekly / Daily candles",
+        "hold_period": "Weeks to months (1-6 months)",
+        "focus"      : """
+POSITIONAL TRADING FOCUS:
+- Entry: on pullbacks in strong uptrend (MA50 bounce)
+- Hold: weeks to months — ride the larger trend
+- Stop Loss: 5-8% below entry (below MA50 or key support)
+- Target: based on trend continuation (risk:reward 1:3+)
+- MA50/MA200: golden cross = strong buy signal
+- Sector rotation: is the sector in favor?
+- Fundamentals matter: revenue growth, margin expansion
+- Position size: 15-25% of portfolio per position
+""",
+        "verdict_label": "POSITIONAL TRADE",
+    },
+    "longterm": {
+        "label"      : "Long-term 🌱",
+        "timeframe"  : "Monthly / Weekly candles",
+        "hold_period": "1 year or more",
+        "focus"      : """
+LONG-TERM INVESTMENT FOCUS:
+- Fundamentals are primary: P/E, ROE, Revenue growth, Debt
+- Business moat: competitive advantage, market leadership
+- Management quality: promoter holding, corporate governance
+- Valuation: is stock trading below intrinsic value?
+- Dividend history: consistent payer = stable business
+- Technicals secondary: use dips to accumulate
+- SIP approach: buy on every 10-15% correction
+- Position size: up to 30-40% of portfolio for high conviction
+- Ignore short-term volatility — focus on 3-5 year horizon
+""",
+        "verdict_label": "INVESTMENT",
+    },
+}
+
+
+def generate_report(stock_data: dict, trading_style: str = "swing") -> str:
+    print(f"\nGenerating AI Report — Style: {trading_style}...")
 
     asset_type = stock_data.get("asset_type", "stock")
+    style      = STYLE_CONTEXT.get(trading_style, STYLE_CONTEXT["swing"])
 
-    # ── STOCK — original detailed format (unchanged) ──
-    if asset_type == "stock":
-        prompt = f"""
-You are a senior professional stock market analyst at a top investment firm.
-Generate a detailed, structured, and professional stock analysis report.
-
-═══════════════════════════════════════
-STOCK DATA
-═══════════════════════════════════════
-Company        : {stock_data.get('name')}
-Symbol         : {stock_data.get('symbol')}
-Sector         : {stock_data.get('sector')}
-Industry       : {stock_data.get('industry')}
-
+    # ── Common data block ──────────────────────────────────────────
+    price_block = f"""
 PRICE DATA:
 Current Price  : {stock_data.get('current_price')} {stock_data.get('currency')}
-Market Cap     : {stock_data.get('market_cap')}
-52W High       : {stock_data.get('52w_high')}
-52W Low        : {stock_data.get('52w_low')}
-Volume         : {stock_data.get('volume')}
 Change (1D)    : {stock_data.get('price_change_1d')}%
 Change (1M)    : {stock_data.get('price_change_1m')}%
 Change (1Y)    : {stock_data.get('price_change_1y')}%
+52W High       : {stock_data.get('52w_high')}
+52W Low        : {stock_data.get('52w_low')}
+Volume         : {stock_data.get('volume')}
+Market Cap     : {stock_data.get('market_cap')}
 
 TECHNICAL INDICATORS:
 Trend          : {stock_data.get('trend')}
@@ -46,7 +107,9 @@ Bollinger Up   : {stock_data.get('bb_upper')}
 Bollinger Low  : {stock_data.get('bb_lower')}
 Support        : {stock_data.get('support')}
 Resistance     : {stock_data.get('resistance')}
+"""
 
+    fund_block = f"""
 FUNDAMENTAL DATA:
 P/E Ratio      : {stock_data.get('pe_ratio')}
 EPS            : {stock_data.get('eps')}
@@ -55,320 +118,170 @@ Profit Margin  : {stock_data.get('profit_margin')}
 Debt/Equity    : {stock_data.get('debt_to_equity')}
 ROE            : {stock_data.get('roe')}
 Dividend Yield : {stock_data.get('dividend_yield')}
-
-═══════════════════════════════════════
-Generate a professional report with EXACTLY these sections:
-
-1. EXECUTIVE SUMMARY
-   Brief 2-3 line overview
-
-2. PRICE PERFORMANCE
-   Analyze 1D, 1M, 1Y performance and trend
-
-3. TECHNICAL ANALYSIS
-   Analyze RSI, MACD, MA50/200, Bollinger Bands
-   Support/Resistance levels
-   Short-term outlook
-
-4. FUNDAMENTAL ANALYSIS
-   P/E vs industry, EPS, Revenue growth
-   Profitability and debt analysis
-
-5. RISK ASSESSMENT
-   Key risks (minimum 3 points)
-   Risk Score: X/10
-
-6. INVESTMENT VERDICT
-   ▶ BUY / HOLD / SELL
-   ▶ Confidence: X%
-   ▶ Target Price (6 months): X
-   ▶ Stop Loss: X
-   ▶ Time Horizon: Short/Medium/Long term
-
-Use professional tone. Be specific with numbers.
-Max 500 words.
 """
 
-    # ── FOREX — currency pair format ──
-    elif asset_type == "forex":
-        prompt = f"""
-You are a senior forex market analyst at a top investment firm.
-Generate a detailed, structured, professional currency pair analysis report.
-
-═══════════════════════════════════════
-FOREX DATA
-═══════════════════════════════════════
-Currency Pair  : {stock_data.get('name')}
-Symbol         : {stock_data.get('symbol')}
-
-PRICE DATA:
-Current Rate   : {stock_data.get('current_price')}
-52W High       : {stock_data.get('52w_high')}
-52W Low        : {stock_data.get('52w_low')}
-Change (1D)    : {stock_data.get('price_change_1d')}%
-Change (1M)    : {stock_data.get('price_change_1m')}%
-Change (1Y)    : {stock_data.get('price_change_1y')}%
-
-TECHNICAL INDICATORS:
-Trend          : {stock_data.get('trend')}
-MA50           : {stock_data.get('ma50')}
-MA200          : {stock_data.get('ma200')}
-RSI            : {stock_data.get('rsi')} ({stock_data.get('rsi_signal')})
-MACD           : {stock_data.get('macd')} ({stock_data.get('macd_signal')})
-Bollinger Up   : {stock_data.get('bb_upper')}
-Bollinger Low  : {stock_data.get('bb_lower')}
-Support        : {stock_data.get('support')}
-Resistance     : {stock_data.get('resistance')}
-
-═══════════════════════════════════════
-Generate a report with EXACTLY these sections:
-
-1. EXECUTIVE SUMMARY
-   Brief 2-3 line overview of this currency pair
-
-2. PRICE PERFORMANCE
-   Analyze 1D, 1M, 1Y performance and trend
-
-3. TECHNICAL ANALYSIS
-   Analyze RSI, MACD, MA50/200, Bollinger Bands
-   Support/Resistance levels
-   Short-term outlook
-
-4. MACRO FACTORS
-   Interest rate differentials, central bank policy,
-   inflation, and geopolitical factors affecting this pair
-
-5. RISK ASSESSMENT
-   Key risks (minimum 3 points)
-   Risk Score: X/10
-
-6. TRADING VERDICT
-   ▶ BUY / HOLD / SELL
-   ▶ Confidence: X%
-   ▶ Target Rate (1 month): X
-   ▶ Stop Loss: X
-   ▶ Time Horizon: Short/Medium/Long term
-
-DO NOT mention P/E, EPS, Revenue or any company fundamentals.
-Use professional tone. Be specific with numbers. Max 400 words.
+    style_block = f"""
+TRADING STYLE SELECTED: {style['label']}
+Recommended Timeframe : {style['timeframe']}
+Hold Period           : {style['hold_period']}
+{style['focus']}
 """
 
-    # ── COMMODITY — futures contract format ──
-    elif asset_type == "commodity":
-        prompt = f"""
-You are a senior commodities market analyst at a top investment firm.
-Generate a detailed, structured, professional commodity analysis report.
+    # ── Asset-specific prompts ─────────────────────────────────────
+    if asset_type == "stock":
+        prompt = f"""You are a senior professional analyst. Generate a {style['label']} optimized stock analysis report.
 
-═══════════════════════════════════════
-COMMODITY DATA
-═══════════════════════════════════════
-Commodity      : {stock_data.get('name')}
-Symbol         : {stock_data.get('symbol')}
+ASSET: {stock_data.get('name')} ({stock_data.get('symbol')})
+Sector: {stock_data.get('sector')} | Industry: {stock_data.get('industry')}
+{price_block}
+{fund_block if trading_style in ['positional', 'longterm'] else ''}
+{style_block}
 
-PRICE DATA:
-Current Price  : {stock_data.get('current_price')} {stock_data.get('currency')}
-52W High       : {stock_data.get('52w_high')}
-52W Low        : {stock_data.get('52w_low')}
-Change (1D)    : {stock_data.get('price_change_1d')}%
-Change (1M)    : {stock_data.get('price_change_1m')}%
-Change (1Y)    : {stock_data.get('price_change_1y')}%
-
-TECHNICAL INDICATORS:
-Trend          : {stock_data.get('trend')}
-MA50           : {stock_data.get('ma50')}
-MA200          : {stock_data.get('ma200')}
-RSI            : {stock_data.get('rsi')} ({stock_data.get('rsi_signal')})
-MACD           : {stock_data.get('macd')} ({stock_data.get('macd_signal')})
-Support        : {stock_data.get('support')}
-Resistance     : {stock_data.get('resistance')}
-
-═══════════════════════════════════════
-Generate a report with EXACTLY these sections:
+Generate report with EXACTLY these sections:
 
 1. EXECUTIVE SUMMARY
-   Brief 2-3 line overview of this commodity's current state
+   2-3 lines — is this a good {style['label']} opportunity right now?
 
-2. PRICE PERFORMANCE
-   Analyze 1D, 1M, 1Y performance and trend
+2. TECHNICAL SETUP
+   Analyze RSI, MACD, MA50/200, Support/Resistance for {style['label']} context
+   {"Focus on today's key levels, VWAP, intraday momentum" if trading_style == 'intraday' else ''}
+   {"Focus on swing entry zone, bollinger bands, RSI divergence" if trading_style == 'swing' else ''}
+   {"Focus on MA50/200 crossover, weekly trend, sector strength" if trading_style == 'positional' else ''}
+   {"Focus on business quality, long-term trend, value vs price" if trading_style == 'longterm' else ''}
 
-3. TECHNICAL ANALYSIS
-   Analyze RSI, MACD, MA50/200, Support/Resistance
-   Short-term outlook
+3. {"FUNDAMENTALS" if trading_style in ['positional', 'longterm'] else "PRICE ACTION"}
+   {"Analyze P/E, ROE, Revenue growth, Debt — is business quality strong?" if trading_style in ['positional', 'longterm'] else "Analyze recent price action, volume, momentum patterns"}
 
-4. SUPPLY & DEMAND FACTORS
-   Key factors: geopolitical events, production levels,
-   seasonal demand, inventory data
-
-5. RISK ASSESSMENT
-   Key risks (minimum 3 points)
+4. RISK ASSESSMENT
+   Key risks for {style['label']} trader (minimum 3 points)
    Risk Score: X/10
 
-6. TRADING VERDICT
-   ▶ BUY / HOLD / SELL
+5. {style['verdict_label']} VERDICT
+   ▶ BUY / HOLD / SELL / AVOID
    ▶ Confidence: X%
-   ▶ Target Price (1 month): X
-   ▶ Stop Loss: X
-   ▶ Time Horizon: Short/Medium/Long term
+   ▶ Entry Price: ₹X (specific level)
+   ▶ Stop Loss: ₹X ({style['hold_period']})
+   ▶ Target 1: ₹X | Target 2: ₹X
+   ▶ Position Size: X% of capital
+   ▶ Hold Period: {style['hold_period']}
 
-DO NOT mention P/E, EPS, Revenue or any company fundamentals.
-Use professional tone. Be specific with numbers. Max 400 words.
+Be specific with numbers. Max 450 words. Professional tone.
 """
 
-    # ── CRYPTO — digital asset format ──
     elif asset_type == "crypto":
-        prompt = f"""
-You are a senior crypto market analyst at a top investment firm.
-Generate a detailed, structured, professional cryptocurrency analysis report.
+        prompt = f"""You are a senior crypto analyst. Generate a {style['label']} optimized crypto report.
 
-═══════════════════════════════════════
-CRYPTO DATA
-═══════════════════════════════════════
-Asset          : {stock_data.get('name')}
-Symbol         : {stock_data.get('symbol')}
+ASSET: {stock_data.get('name')} ({stock_data.get('symbol')})
+{price_block}
+{style_block}
 
-PRICE DATA:
-Current Price  : {stock_data.get('current_price')} {stock_data.get('currency')}
-Market Cap     : {stock_data.get('market_cap')}
-52W High       : {stock_data.get('52w_high')}
-52W Low        : {stock_data.get('52w_low')}
-Volume         : {stock_data.get('volume')}
-Change (1D)    : {stock_data.get('price_change_1d')}%
-Change (1M)    : {stock_data.get('price_change_1m')}%
-Change (1Y)    : {stock_data.get('price_change_1y')}%
-
-TECHNICAL INDICATORS:
-Trend          : {stock_data.get('trend')}
-MA50           : {stock_data.get('ma50')}
-MA200          : {stock_data.get('ma200')}
-RSI            : {stock_data.get('rsi')} ({stock_data.get('rsi_signal')})
-MACD           : {stock_data.get('macd')} ({stock_data.get('macd_signal')})
-Bollinger Up   : {stock_data.get('bb_upper')}
-Bollinger Low  : {stock_data.get('bb_lower')}
-Support        : {stock_data.get('support')}
-Resistance     : {stock_data.get('resistance')}
-
-═══════════════════════════════════════
-Generate a report with EXACTLY these sections:
+Generate report with EXACTLY these sections:
 
 1. EXECUTIVE SUMMARY
-   Brief 2-3 line overview of this crypto asset
+   Is this a good {style['label']} crypto opportunity?
 
-2. PRICE PERFORMANCE
-   Analyze 1D, 1M, 1Y performance and trend
+2. TECHNICAL SETUP
+   RSI, MACD, MA50/200, Support/Resistance — for {style['label']} context
+   {"Intraday: focus on 15min momentum, volume spikes, key hourly levels" if trading_style == 'intraday' else ''}
+   {"Swing: daily chart setup, bollinger bands, RSI divergence" if trading_style == 'swing' else ''}
+   {"Positional/Long-term: weekly trend, market cycle position (bull/bear)" if trading_style in ['positional', 'longterm'] else ''}
 
-3. TECHNICAL ANALYSIS
-   Analyze RSI, MACD, MA50/200, Bollinger Bands
-   Support/Resistance levels
-   Short-term outlook
+3. MARKET SENTIMENT
+   Crypto market sentiment, Bitcoin correlation, regulatory environment
 
-4. MARKET SENTIMENT & ADOPTION
-   Network activity, adoption trends, regulatory environment,
-   correlation with broader crypto market
-
-5. RISK ASSESSMENT
-   Key risks (minimum 3 points — include volatility, regulation)
+4. RISK ASSESSMENT
+   Crypto-specific risks — volatility, regulation, liquidity (min 3 points)
    Risk Score: X/10
 
-6. TRADING VERDICT
-   ▶ BUY / HOLD / SELL
+5. {style['verdict_label']} VERDICT
+   ▶ BUY / HOLD / SELL / AVOID
    ▶ Confidence: X%
-   ▶ Target Price (1 month): X
-   ▶ Stop Loss: X
-   ▶ Time Horizon: Short/Medium/Long term
+   ▶ Entry: $X | Stop Loss: $X | Target 1: $X | Target 2: $X
+   ▶ Position Size: X% of crypto allocation
+   ▶ Hold: {style['hold_period']}
 
-DO NOT mention P/E, EPS, Revenue or any company fundamentals.
-Use professional tone. Be specific with numbers. Max 400 words.
+Max 400 words. No company fundamentals (P/E etc.).
 """
 
-    # ── INDEX — benchmark format ──
-    elif asset_type == "index":
-        prompt = f"""
-You are a senior market strategist at a top investment firm.
-Generate a detailed, structured, professional market index analysis report.
+    elif asset_type == "forex":
+        prompt = f"""You are a senior forex analyst. Generate a {style['label']} currency pair report.
 
-═══════════════════════════════════════
-INDEX DATA
-═══════════════════════════════════════
-Index          : {stock_data.get('name')}
-Symbol         : {stock_data.get('symbol')}
+PAIR: {stock_data.get('name')} ({stock_data.get('symbol')})
+{price_block}
+{style_block}
 
-PRICE DATA:
-Current Level  : {stock_data.get('current_price')}
-52W High       : {stock_data.get('52w_high')}
-52W Low        : {stock_data.get('52w_low')}
-Change (1D)    : {stock_data.get('price_change_1d')}%
-Change (1M)    : {stock_data.get('price_change_1m')}%
-Change (1Y)    : {stock_data.get('price_change_1y')}%
-
-TECHNICAL INDICATORS:
-Trend          : {stock_data.get('trend')}
-MA50           : {stock_data.get('ma50')}
-MA200          : {stock_data.get('ma200')}
-RSI            : {stock_data.get('rsi')} ({stock_data.get('rsi_signal')})
-MACD           : {stock_data.get('macd')} ({stock_data.get('macd_signal')})
-Support        : {stock_data.get('support')}
-Resistance     : {stock_data.get('resistance')}
-
-═══════════════════════════════════════
-Generate a report with EXACTLY these sections:
-
+Sections:
 1. EXECUTIVE SUMMARY
-   Brief 2-3 line overview of this market index's current state
+2. TECHNICAL SETUP — for {style['label']} ({"intraday key levels, pip targets" if trading_style=='intraday' else "swing levels, weekly pivots"})
+3. MACRO FACTORS — interest rates, inflation, central bank policy
+4. RISK ASSESSMENT (3 points) — Risk Score: X/10
+5. {style['verdict_label']} VERDICT
+   ▶ BUY/SELL | Entry: X | SL: X | TP1: X | TP2: X | Hold: {style['hold_period']}
 
-2. PRICE PERFORMANCE
-   Analyze 1D, 1M, 1Y performance and trend
+Max 350 words.
+"""
 
-3. TECHNICAL ANALYSIS
-   Analyze RSI, MACD, MA50/200, Support/Resistance
-   Short-term outlook
+    elif asset_type == "commodity":
+        prompt = f"""You are a senior commodities analyst. Generate a {style['label']} commodity report.
 
-4. MARKET BREADTH & MACRO FACTORS
-   Overall economic sentiment, key sector contributions,
-   global market correlation
+COMMODITY: {stock_data.get('name')} ({stock_data.get('symbol')})
+{price_block}
+{style_block}
 
-5. RISK ASSESSMENT
-   Key risks (minimum 3 points)
-   Risk Score: X/10
+Sections:
+1. EXECUTIVE SUMMARY
+2. TECHNICAL SETUP — {style['label']} levels, key support/resistance
+3. SUPPLY & DEMAND — geopolitical factors, inventory, seasonal demand
+4. RISK ASSESSMENT (3 points) — Risk Score: X/10
+5. {style['verdict_label']} VERDICT
+   ▶ BUY/SELL/HOLD | Entry: X | SL: X | Target: X | Hold: {style['hold_period']}
 
-6. MARKET OUTLOOK
-   ▶ BULLISH / NEUTRAL / BEARISH
-   ▶ Confidence: X%
-   ▶ Target Level (1 month): X
-   ▶ Time Horizon: Short/Medium/Long term
+Max 350 words.
+"""
 
-DO NOT mention P/E, EPS, Revenue or any company fundamentals.
-Use professional tone. Be specific with numbers. Max 400 words.
+    elif asset_type == "index":
+        prompt = f"""You are a senior market strategist. Generate a {style['label']} index analysis.
+
+INDEX: {stock_data.get('name')} ({stock_data.get('symbol')})
+{price_block}
+{style_block}
+
+Sections:
+1. EXECUTIVE SUMMARY
+2. TECHNICAL SETUP — {style['label']} context, key levels
+3. MARKET BREADTH & MACRO — economic sentiment, global correlation
+4. RISK ASSESSMENT (3 points) — Risk Score: X/10
+5. MARKET OUTLOOK
+   ▶ BULLISH/NEUTRAL/BEARISH | Confidence: X%
+   ▶ {"Today's range: X-X" if trading_style=='intraday' else f"Target (for {style['hold_period']}): X"} | SL: X
+
+Max 350 words.
 """
 
     else:
-        prompt = f"Analyze this financial asset data and give a short BUY/HOLD/SELL recommendation: {stock_data}"
+        prompt = f"Analyze this {trading_style} trading opportunity and give BUY/HOLD/SELL with entry, stop loss, target: {stock_data}"
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=1500,
-        temperature=0.7
+        model      = "llama-3.3-70b-versatile",
+        messages   = [{"role": "user", "content": prompt}],
+        max_tokens = 1200,
+        temperature= 0.65,
     )
 
     return response.choices[0].message.content
 
 
 if __name__ == "__main__":
-    symbol = input("Enter symbol (e.g. RELIANCE.NS / AAPL / GC=F / USDINR=X): ").strip()
+    from stock_data import get_stock_data
+    symbol = input("Symbol: ").strip()
+    style  = input("Trading style (intraday/swing/positional/longterm): ").strip() or "swing"
     data   = get_stock_data(symbol)
-
     if data:
-        report = generate_report(data)
-        print("\n")
-        print("═" * 55)
-        print(f"   📊 ANALYSIS REPORT — {data.get('name')} ({data.get('asset_type', 'stock').upper()})")
-        print("═" * 55)
+        report = generate_report(data, trading_style=style)
+        print("\n" + "═"*55)
+        print(f"  📊 {style.upper()} REPORT — {data.get('name')}")
+        print("═"*55)
         print(report)
-        print("═" * 55)
-        print(f"\n  Price    : {data.get('currency')} {data.get('current_price')}")
-        print(f"  RSI      : {data.get('rsi')} — {data.get('rsi_signal')}")
-        print(f"  MACD     : {data.get('macd_signal')}")
-        print(f"  Trend    : {data.get('trend')}")
-        print("═" * 55)
+        print("═"*55)
     else:
-        print("Could not fetch data. Check the symbol and try again.")
+        print("Could not fetch data.")

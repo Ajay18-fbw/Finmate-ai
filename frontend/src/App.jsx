@@ -555,7 +555,7 @@ function RiskModal({ onSave, T }) {
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
           <div style={{ fontSize: 18, fontWeight: 600, color: T.text, marginBottom: 6 }}>Risk Profile Setup</div>
-          <div style={{ fontSize: 13, color: T.textSub, lineHeight: 1.6 }}>Aapka investment risk tolerance kya hai? Isse main aapko better advice de sakta hun.</div>
+          <div style={{ fontSize: 13, color: T.textSub, lineHeight: 1.6 }}>What is your investment risk tolerance? This helps us give you better personalized advice.</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
           {profiles.map(p => (
@@ -579,7 +579,7 @@ function RiskModal({ onSave, T }) {
         </Btn>
         <div style={{ textAlign: "center", marginTop: 10 }}>
           <button onClick={() => onSave("moderate")} style={{ fontSize: 12, color: T.textTer, textDecoration: "underline", background: "none", border: "none", cursor: "pointer" }}>
-            Skip for now (set to Moderate)
+            Skip for now (defaults to Moderate)
           </button>
         </div>
       </div>
@@ -595,7 +595,7 @@ function HomePage({ setTab, setInput, chatInputRef, T, watchlist, setWatchlist, 
     { icon: "🧾", title: "Tax Calculator",        desc: "Old vs New regime — 2024-25",           tab: "tax" },
     { icon: "📈", title: "SIP Planner",           desc: "Goal planning & returns calculator",    tab: "sip" },
   ]
-  const quickAsks = ["SIP kaise shuru karun?", "80C mein kya invest karun?", "Emergency fund kya hota hai?", "ELSS vs PPF — kaunsa better?"]
+  const quickAsks = ["How to start a SIP?", "Best 80C investment options?", "What is an emergency fund?", "ELSS vs PPF — which is better?"]
   return (
     <div style={{ maxWidth: 860, margin: "0 auto", padding: "32px 20px 80px" }}>
       <div className="fade-up" style={{ textAlign: "center", marginBottom: 36 }}>
@@ -603,10 +603,10 @@ function HomePage({ setTab, setInput, chatInputRef, T, watchlist, setWatchlist, 
           AI-Powered · CA + Broker Intelligence
         </div>
         <h1 style={{ fontSize: 34, fontWeight: 600, color: T.text, lineHeight: 1.2, marginBottom: 10, letterSpacing: "-0.5px" }}>
-          Your personal CA, Broker<br />& Financial Advisor — in one.
+          Your Personal CA, Broker<br />& Financial Advisor — in One.
         </h1>
         <p style={{ fontSize: 14, color: T.textSub, marginBottom: 22, lineHeight: 1.7, maxWidth: 480, margin: "0 auto 22px" }}>
-          Stock entry/exit levels, tax planning, SIP calculations — ask anything in Hindi or English.
+          Stock entry/exit levels, tax planning, SIP calculations — ask anything in English or Hindi.
         </p>
         <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 22 }}>
           {quickAsks.map((q, i) => (
@@ -666,7 +666,7 @@ function ChatPage({ messages, input, setInput, loading, sendMessage, chatEndRef,
     `Stop loss kahan rakhu?`,
   ] : []
 
-  const generalChips = ["SIP calculate karo", "Tax regime compare karo", "Portfolio rebalance karo", "Best ELSS funds 2024"]
+  const generalChips = ["Calculate my SIP", "Compare tax regimes", "How to rebalance portfolio?", "Best ELSS funds 2024"]
   const chips = [...stockCtxChips, ...generalChips].slice(0, 5)
 
   const handleKey = e => {
@@ -767,9 +767,16 @@ function ChatPage({ messages, input, setInput, loading, sendMessage, chatEndRef,
 }
 
 // ─── STOCKS PAGE ──────────────────────────────────────────────────
-function StocksPage({ symbol, setSymbol, suggestions, stockData, stockReport, stockLoading, stockError, analyzeStock, T, addToWatchlist, isWatched }) {
+function StocksPage({ symbol, setSymbol, suggestions, stockData, stockReport, stockLoading, stockError, analyzeStock, T, addToWatchlist, isWatched, tradingStyle, setTradingStyle }) {
   const verdict = getVerdict(stockReport)
   const [activeCategory, setActiveCategory] = useState("All")
+
+  const styleOptions = [
+    { key: "intraday",   icon: "⚡", label: "Intraday",   desc: "Same day" },
+    { key: "swing",      icon: "🔄", label: "Swing",      desc: "2-10 days" },
+    { key: "positional", icon: "📅", label: "Positional", desc: "Weeks-months" },
+    { key: "longterm",   icon: "🌱", label: "Long-term",  desc: "1yr+" },
+  ]
   const vColors = verdict ? { color: T[verdict.k], bg: T[`${verdict.k}Bg`], border: T[`${verdict.k}Bd`] } : null
 
   return (
@@ -813,13 +820,33 @@ function StocksPage({ symbol, setSymbol, suggestions, stockData, stockReport, st
       </div>
 
       {/* Category pills */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
         {["All", "India", "US", "Crypto", "Forex", "Commodities"].map(c => (
           <button key={c} onClick={() => setActiveCategory(c)}
             style={{ padding: "5px 14px", borderRadius: 16, fontSize: 12, fontWeight: 500, border: `1px solid ${activeCategory === c ? T.accent : T.border}`, background: activeCategory === c ? T.accentBg : T.bg, color: activeCategory === c ? T.accent : T.textSub, transition: "all 0.15s" }}>
             {c}
           </button>
         ))}
+      </div>
+
+      {/* Trading Style Selector */}
+      <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 12, padding: "12px 16px", marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+          <div>
+            <span style={{ fontSize: 12, fontWeight: 500, color: T.text }}>📋 AI Report Style</span>
+            <span style={{ fontSize: 11, color: T.textTer, marginLeft: 8 }}>Report will be optimized for your trading style</span>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {styleOptions.map(s => (
+              <button key={s.key} onClick={() => setTradingStyle(s.key)}
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 16, fontSize: 12, fontWeight: 500, border: `2px solid ${tradingStyle === s.key ? T.accent : T.border}`, background: tradingStyle === s.key ? T.accentBg : T.bg, color: tradingStyle === s.key ? T.accent : T.textSub, cursor: "pointer", transition: "all 0.15s" }}>
+                <span>{s.icon}</span>
+                <span>{s.label}</span>
+                <span style={{ fontSize: 10, color: tradingStyle === s.key ? T.accent : T.textTer }}>· {s.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {stockError && (
@@ -944,7 +971,7 @@ function StocksPage({ symbol, setSymbol, suggestions, stockData, stockReport, st
 // ─── TAX PAGE ─────────────────────────────────────────────────────
 function TaxPage({ taxForm, setTaxForm, taxResult, taxLoading, calculateTax, T }) {
   const fields = [
-    { key: "annual_salary",   label: "Annual salary",          placeholder: "e.g. 800000", help: "Total gross CTC per year" },
+    { key: "annual_salary",   label: "Annual Salary",          placeholder: "e.g. 800000", help: "Total gross CTC per year" },
     { key: "investments_80c", label: "80C investments",        placeholder: "e.g. 150000", help: "PPF, ELSS, LIC — max ₹1,50,000" },
     { key: "insurance_80d",   label: "Health insurance (80D)", placeholder: "e.g. 25000",  help: "Medical premium — max ₹25,000" },
     { key: "hra",             label: "HRA exemption",          placeholder: "e.g. 120000", help: "If HRA received from employer" },
@@ -956,7 +983,7 @@ function TaxPage({ taxForm, setTaxForm, taxResult, taxLoading, calculateTax, T }
         <p style={{ fontSize: 13, color: T.textSub }}>Old vs New regime — find which saves you more money.</p>
       </div>
       <Card T={T} style={{ marginBottom: 16 }}>
-        <SLabel T={T}>Your details</SLabel>
+        <SLabel T={T}>Your Details</SLabel>
         <div className="two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
           {fields.map(f => (
             <div key={f.key}>
@@ -972,7 +999,7 @@ function TaxPage({ taxForm, setTaxForm, taxResult, taxLoading, calculateTax, T }
       {taxResult && (
         <div className="fade-up">
           <div style={{ background: T.greenBg, border: `1px solid ${T.greenBd}`, borderRadius: 12, padding: "18px 20px", marginBottom: 14, textAlign: "center" }}>
-            <div style={{ fontSize: 11, color: T.green, fontWeight: 600, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6 }}>Best option for you</div>
+            <div style={{ fontSize: 11, color: T.green, fontWeight: 600, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6 }}>Best Option for You</div>
             <div style={{ fontSize: 24, fontWeight: 600, color: T.text, marginBottom: 6 }}>{taxResult.better_regime} ✅</div>
             <div style={{ fontSize: 13, color: T.textSub }}>You save <strong style={{ color: T.green, fontSize: 16 }}>₹{taxResult.you_save?.toLocaleString()}</strong> per year</div>
           </div>
@@ -987,9 +1014,9 @@ function TaxPage({ taxForm, setTaxForm, taxResult, taxLoading, calculateTax, T }
           </div>
           <Card T={T} style={{ marginBottom: 12 }}>
             <SLabel T={T}>Breakdown</SLabel>
-            <DataRow T={T} label="Annual salary" value={`₹${taxResult.annual_salary?.toLocaleString()}`} />
-            <DataRow T={T} label="Total deductions" value={`₹${taxResult.deductions_used?.toLocaleString()}`} />
-            <DataRow T={T} label="Effective tax rate" value={`${taxResult.effective_rate}%`} />
+            <DataRow T={T} label="Annual Salary" value={`₹${taxResult.annual_salary?.toLocaleString()}`} />
+            <DataRow T={T} label="Total Deductions" value={`₹${taxResult.deductions_used?.toLocaleString()}`} />
+            <DataRow T={T} label="Effective Tax Rate" value={`${taxResult.effective_rate}%`} />
           </Card>
           <Card T={T}>
             <SLabel T={T}>💡 Tax saving tips</SLabel>
@@ -1057,7 +1084,7 @@ function SipPage({ sipMode, setSipMode, sipForm, setSipForm, sipResult, sipLoadi
       </div>
 
       <Card T={T} style={{ marginBottom: 16 }}>
-        <SLabel T={T}>{sipMode === "calculate" ? "SIP details" : "Goal details"}</SLabel>
+        <SLabel T={T}>{sipMode === "calculate" ? "SIP Details" : "Goal Details"}</SLabel>
         <div style={{ display: "flex", flexDirection: "column", gap: 18, marginBottom: 18 }}>
           {fields.map(f => (
             <div key={f.key}>
@@ -1100,7 +1127,7 @@ function SipPage({ sipMode, setSipMode, sipForm, setSipForm, sipResult, sipLoadi
           </Card>
           {sipResult.suggestions?.length > 0 && (
             <Card T={T}>
-              <SLabel T={T}>💡 Fund recommendations</SLabel>
+              <SLabel T={T}>💡 Fund Recommendations</SLabel>
               {sipResult.suggestions.map((s, i) => (
                 <div key={i} style={{ padding: "8px 0", borderBottom: i < sipResult.suggestions.length - 1 ? `1px solid ${T.border}` : "none", fontSize: 13, color: T.text, lineHeight: 1.6, display: "flex", gap: 8 }}>
                   <span style={{ color: T.accent, flexShrink: 0 }}>→</span> {s}
@@ -1154,7 +1181,7 @@ function WatchlistSection({ watchlist, setWatchlist, analyzeStock, setTab, T }) 
     <div style={{ marginTop: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: T.text }}>⭐ Watchlist</div>
-        <span style={{ fontSize: 11, color: T.textTer }}>{watchlist.length} stocks · auto-refresh 60s</span>
+        <span style={{ fontSize: 11, color: T.textTer }}>{watchlist.length} stocks · auto-refresh every 60s</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {watchlist.map((w, i) => {
@@ -1227,14 +1254,14 @@ function NewsPage({ T }) {
     <div className="fade-in" style={{ maxWidth: 780, margin: "0 auto", padding: "20px 20px 80px" }}>
       <div style={{ marginBottom: 18 }}>
         <h2 style={{ fontSize: 20, fontWeight: 500, color: T.text, marginBottom: 4 }}>📰 Market News</h2>
-        <p style={{ fontSize: 13, color: T.textSub }}>Kisi bhi stock ya index ki latest news — AI Hinglish summary ke saath.</p>
+        <p style={{ fontSize: 13, color: T.textSub }}>Latest news for any stock or index — with AI summary and sentiment.</p>
       </div>
 
       {/* Search */}
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         <input value={inputVal} onChange={e => setInputVal(e.target.value)}
           onKeyDown={e => e.key === "Enter" && fetchNews(inputVal)}
-          placeholder="Stock symbol ya naam — e.g. RELIANCE.NS, TCS, BTC-USD..."
+          placeholder="Stock symbol or name — e.g. RELIANCE.NS, TCS, BTC-USD..."
           style={{ flex: 1, padding: "11px 16px", fontSize: 13, border: `1px solid ${T.borderEm}`, borderRadius: 10, background: T.bg, color: T.text, outline: "none", transition: "border-color 0.15s, box-shadow 0.15s" }}
           onFocus={e => { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accent}22` }}
           onBlur={e => { e.target.style.borderColor = T.borderEm; e.target.style.boxShadow = "none" }}
@@ -1271,7 +1298,7 @@ function NewsPage({ T }) {
               <div style={{ height: 11, background: `linear-gradient(90deg, ${T.skeletonA} 25%, ${T.skeletonB} 50%, ${T.skeletonA} 75%)`, backgroundSize: "600px 100%", animation: "shimmer 1.4s ease infinite", borderRadius: 6, width: "50%" }} />
             </div>
           ))}
-          <div style={{ textAlign: "center", fontSize: 12, color: T.textSub, marginTop: 4 }}>AI Hinglish summaries generate ho rahi hain...</div>
+          <div style={{ textAlign: "center", fontSize: 12, color: T.textSub, marginTop: 4 }}>AI summaries are being generated...</div>
         </div>
       )}
 
@@ -1313,8 +1340,8 @@ function NewsPage({ T }) {
       {!loading && !articles.length && !error && (
         <div style={{ textAlign: "center", padding: "60px 20px", color: T.textTer }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>📰</div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: T.textSub, marginBottom: 6 }}>Search karo ya trending topic choose karo</div>
-          <div style={{ fontSize: 12 }}>AI Hinglish summary + sentiment analysis milega</div>
+          <div style={{ fontSize: 14, fontWeight: 500, color: T.textSub, marginBottom: 6 }}>Search or choose a trending topic above</div>
+          <div style={{ fontSize: 12 }}>Get AI summary + sentiment analysis for any asset</div>
         </div>
       )}
     </div>
@@ -1355,7 +1382,7 @@ function ComparePage({ T, analyzeStock, setTab }) {
     try {
       const r = await axios.get(`${API}/compare/${encodeURIComponent(sym1)}/${encodeURIComponent(sym2)}`)
       setResult(r.data)
-    } catch { setError("Comparison failed. Symbols check karo.") }
+    } catch { setError("Comparison failed. Please check the symbols and try again.") }
     finally { setLoading(false) }
   }
 
@@ -1386,7 +1413,7 @@ function ComparePage({ T, analyzeStock, setTab }) {
     <div className="fade-in" style={{ maxWidth: 900, margin: "0 auto", padding: "20px 20px 80px" }}>
       <div style={{ marginBottom: 18 }}>
         <h2 style={{ fontSize: 20, fontWeight: 500, color: T.text, marginBottom: 4 }}>⚖️ Stock Comparison</h2>
-        <p style={{ fontSize: 13, color: T.textSub }}>Do stocks side-by-side compare karo — technical, fundamental aur AI verdict.</p>
+        <p style={{ fontSize: 13, color: T.textSub }}>Compare two assets side-by-side — technical, fundamental, and AI verdict.</p>
       </div>
 
       {/* Preset pairs */}
@@ -1433,8 +1460,11 @@ function ComparePage({ T, analyzeStock, setTab }) {
         ))}
       </div>
 
-      <button onClick={compare} disabled={loading || !sym1 || !sym2}
-        style={{ width: "100%", padding: 12, background: loading || !sym1 || !sym2 ? T.textTer : T.accent, color: "#fff", borderRadius: 10, fontSize: 14, fontWeight: 500, marginBottom: 20, transition: "background 0.15s" }}>
+      {sym1 && sym2 && sym1.toUpperCase() === sym2.toUpperCase() && (
+        <div style={{ padding: "10px 14px", background: T.amberBg, border: `1px solid ${T.amberBd}`, borderRadius: 8, marginBottom: 10, fontSize: 12, color: T.amber }}>⚠️ Please select two different assets to compare.</div>
+      )}
+      <button onClick={compare} disabled={loading || !sym1 || !sym2 || sym1.toUpperCase() === sym2.toUpperCase()}
+        style={{ width: "100%", padding: 12, background: loading || !sym1 || !sym2 || sym1.toUpperCase() === sym2.toUpperCase() ? T.textTer : T.accent, color: "#fff", borderRadius: 10, fontSize: 14, fontWeight: 500, marginBottom: 20, transition: "background 0.15s" }}>
         {loading ? "Comparing... (30-40s)" : "⚖️ Compare Now →"}
       </button>
 
@@ -1524,10 +1554,499 @@ function ComparePage({ T, analyzeStock, setTab }) {
       {!result && !loading && !error && (
         <div style={{ textAlign: "center", padding: "50px 20px", color: T.textTer }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>⚖️</div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: T.textSub, marginBottom: 6 }}>Do stocks select karo upar se</div>
-          <div style={{ fontSize: 12 }}>Technical + Fundamental + AI verdict ek saath milega</div>
+          <div style={{ fontSize: 14, fontWeight: 500, color: T.textSub, marginBottom: 6 }}>Select two assets above to compare</div>
+          <div style={{ fontSize: 12 }}>Get technical, fundamental, and AI verdict together</div>
         </div>
       )}
+    </div>
+  )
+}
+
+
+// ─── PROFILE PAGE ─────────────────────────────────────────────────
+function ProfilePage({ authUser, T, setWatchlist, watchlist, analyzeStock, setTab }) {
+  const [profile, setProfile]       = useState(null)
+  const [loading, setLoading]       = useState(true)
+  const [saving, setSaving]         = useState(false)
+  const [saveMsg, setSaveMsg]       = useState("")
+
+  // Editable fields
+  const [salary, setSalary]         = useState(0)
+  const [expenses, setExpenses]     = useState(0)
+  const [risk, setRisk]             = useState("moderate")
+  const [style, setStyle]           = useState("swing")
+
+  // Password change
+  const [showPwSection, setShowPw]  = useState(false)
+  const [oldPw, setOldPw]           = useState("")
+  const [newPw, setNewPw]           = useState("")
+  const [pwMsg, setPwMsg]           = useState("")
+  const [pwLoading, setPwLoading]   = useState(false)
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const r = await axios.get(`${API}/auth/me`)
+        const p = r.data.profile
+        setProfile(p)
+        setSalary(p.salary   || 0)
+        setExpenses(p.expenses || 0)
+        setRisk(p.risk_profile  || "moderate")
+        setStyle(p.trading_style || "swing")
+      } catch {} finally { setLoading(false) }
+    }
+    fetchProfile()
+  }, [])
+
+  const saveProfile = async () => {
+    setSaving(true); setSaveMsg("")
+    try {
+      await axios.post(`${API}/auth/update-profile`, {
+        salary, expenses,
+        risk_profile  : risk,
+        trading_style : style,
+      })
+      setSaveMsg("✅ Profile saved successfully!")
+      setTimeout(() => setSaveMsg(""), 3000)
+    } catch { setSaveMsg("❌ Save failed. Please try again.") }
+    finally { setSaving(false) }
+  }
+
+  const changePassword = async () => {
+    if (!oldPw || !newPw) { setPwMsg("❌ Both fields are required"); return }
+    if (newPw.length < 6) { setPwMsg("❌ New password must be at least 6 characters"); return }
+    setPwLoading(true); setPwMsg("")
+    try {
+      await axios.post(`${API}/auth/change-password`, { old_password: oldPw, new_password: newPw })
+      setPwMsg("✅ Password changed successfully!")
+      setOldPw(""); setNewPw("")
+      setTimeout(() => { setPwMsg(""); setShowPw(false) }, 2500)
+    } catch (err) {
+      setPwMsg("❌ " + (err.response?.data?.detail || "Failed. Try again."))
+    } finally { setPwLoading(false) }
+  }
+
+  const riskOptions = [
+    { key: "conservative", icon: "🛡️", label: "Conservative", desc: "FD, PPF, Debt funds" },
+    { key: "moderate",     icon: "⚖️", label: "Moderate",     desc: "Balanced equity + debt" },
+    { key: "aggressive",   icon: "🚀", label: "Aggressive",   desc: "Stocks, small-cap, crypto" },
+  ]
+
+  const styleOptions = [
+    { key: "intraday",    icon: "⚡", label: "Intraday",    desc: "Same day buy & sell" },
+    { key: "swing",       icon: "🔄", label: "Swing",       desc: "2–10 days holding" },
+    { key: "positional",  icon: "📅", label: "Positional",  desc: "Weeks to months" },
+    { key: "longterm",    icon: "🌱", label: "Long-term",   desc: "1+ year investment" },
+  ]
+
+  const memberSince = () => {
+    // approximate from token
+    return "June 2025"
+  }
+
+  if (loading) return (
+    <div style={{ maxWidth: 720, margin: "0 auto", padding: "20px 20px 80px" }}>
+      {[120, 80, 200, 160].map((h, i) => (
+        <div key={i} style={{ height: h, background: `linear-gradient(90deg, ${T.skeletonA} 25%, ${T.skeletonB} 50%, ${T.skeletonA} 75%)`, backgroundSize: "600px 100%", animation: "shimmer 1.4s ease infinite", borderRadius: 12, marginBottom: 12 }} />
+      ))}
+    </div>
+  )
+
+  return (
+    <div className="fade-in" style={{ maxWidth: 720, margin: "0 auto", padding: "20px 20px 80px" }}>
+
+      {/* ── Avatar + Info Card ── */}
+      <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 16, padding: "24px 24px 20px", marginBottom: 14, display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+        <div style={{ width: 72, height: 72, borderRadius: "50%", background: T.accentBg, border: `2px solid ${T.accent}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 700, color: T.accent, flexShrink: 0 }}>
+          {authUser?.name?.charAt(0)?.toUpperCase() || "U"}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 20, fontWeight: 600, color: T.text, marginBottom: 4 }}>{authUser?.name}</div>
+          <div style={{ fontSize: 13, color: T.textSub, marginBottom: 6 }}>{authUser?.email}</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: T.accentBg, color: T.accent, border: `1px solid ${T.accent}33` }}>
+              {riskOptions.find(r => r.key === risk)?.icon} {riskOptions.find(r => r.key === risk)?.label}
+            </span>
+            <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: T.bgSub, color: T.textSub, border: `1px solid ${T.border}` }}>
+              {styleOptions.find(s => s.key === style)?.icon} {styleOptions.find(s => s.key === style)?.label} Trader
+            </span>
+            <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: T.bgSub, color: T.textTer, border: `1px solid ${T.border}` }}>
+              ⭐ {watchlist.length} watchlist
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Stats Row ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 14 }}>
+        {[
+          { icon: "⭐", label: "Watchlist",    value: watchlist.length + " stocks" },
+          { icon: "💬", label: "Conversations", value: (profile?.conversation?.length || 0) + " messages" },
+          { icon: "🎯", label: "Goals",         value: (profile?.goals?.length || 0) + " set" },
+        ].map((s, i) => (
+          <div key={i} style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 16px", textAlign: "center" }}>
+            <div style={{ fontSize: 22, marginBottom: 6 }}>{s.icon}</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: T.text, fontFamily: T.mono }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: T.textTer, marginTop: 2 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Financial Info ── */}
+      <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "18px 20px", marginBottom: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: T.textTer, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 14 }}>Financial Info</div>
+        <div className="two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+          {[
+            { label: "Monthly Salary (₹)", val: salary, set: setSalary },
+            { label: "Monthly Expenses (₹)", val: expenses, set: setExpenses },
+          ].map((f, i) => (
+            <div key={i}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: T.textSub, marginBottom: 6 }}>{f.label}</label>
+              <input type="number" value={f.val} onChange={e => f.set(parseInt(e.target.value) || 0)}
+                style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: `1px solid ${T.borderEm}`, borderRadius: 8, background: T.bg, color: T.text, outline: "none" }}
+                onFocus={e => { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accent}22` }}
+                onBlur={e => { e.target.style.borderColor = T.borderEm; e.target.style.boxShadow = "none" }}
+              />
+            </div>
+          ))}
+        </div>
+        {salary > 0 && expenses > 0 && (
+          <div style={{ padding: "10px 14px", background: salary - expenses > 0 ? T.greenBg : T.redBg, borderRadius: 8, fontSize: 13, color: salary - expenses > 0 ? T.green : T.red, border: `1px solid ${salary - expenses > 0 ? T.greenBd : T.redBd}` }}>
+            Monthly Savings: <strong style={{ fontFamily: T.mono }}>₹{Math.abs(salary - expenses).toLocaleString("en-IN")}</strong>
+            {salary - expenses < 0 && " — expenses exceed salary!"}
+          </div>
+        )}
+      </div>
+
+      {/* ── Risk Profile ── */}
+      <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "18px 20px", marginBottom: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: T.textTer, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 14 }}>Risk Profile</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {riskOptions.map(r => (
+            <div key={r.key} onClick={() => setRisk(r.key)}
+              style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 10, cursor: "pointer", border: `2px solid ${risk === r.key ? T.accent : T.border}`, background: risk === r.key ? T.accentBg : T.bgSub, transition: "all 0.15s" }}>
+              <span style={{ fontSize: 20 }}>{r.icon}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: risk === r.key ? T.accent : T.text }}>{r.label}</div>
+                <div style={{ fontSize: 11, color: T.textTer }}>{r.desc}</div>
+              </div>
+              {risk === r.key && <span style={{ fontSize: 14, color: T.accent }}>✓</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Trading Style ── */}
+      <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "18px 20px", marginBottom: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: T.textTer, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Trading Style</div>
+        <div style={{ fontSize: 12, color: T.textTer, marginBottom: 14 }}>AI reports will be optimized for your selected style</div>
+        <div className="two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {styleOptions.map(s => (
+            <div key={s.key} onClick={() => setStyle(s.key)}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 10, cursor: "pointer", border: `2px solid ${style === s.key ? T.accent : T.border}`, background: style === s.key ? T.accentBg : T.bgSub, transition: "all 0.15s" }}>
+              <span style={{ fontSize: 20 }}>{s.icon}</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: style === s.key ? T.accent : T.text }}>{s.label}</div>
+                <div style={{ fontSize: 11, color: T.textTer }}>{s.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Watchlist in Profile ── */}
+      {watchlist.length > 0 && (
+        <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "18px 20px", marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: T.textTer, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 14 }}>My Watchlist ({watchlist.length})</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {watchlist.map((w, i) => (
+              <div key={i} onClick={() => { setTab("stocks"); setTimeout(() => analyzeStock(w.symbol), 100) }}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 20, background: T.bgSub, border: `1px solid ${T.border}`, cursor: "pointer", fontSize: 12, color: T.text, transition: "all 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.color = T.accent }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.text }}>
+                ⭐ {w.name || w.symbol}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Save Button ── */}
+      <button onClick={saveProfile} disabled={saving}
+        style={{ width: "100%", padding: 13, background: saving ? T.textTer : T.accent, color: "#fff", borderRadius: 10, fontSize: 14, fontWeight: 500, marginBottom: 10, transition: "background 0.15s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        {saving ? <><ThinkDots /> Saving...</> : "Save Profile →"}
+      </button>
+      {saveMsg && <div className="fade-in" style={{ textAlign: "center", fontSize: 13, color: saveMsg.includes("✅") ? T.green : T.red, marginBottom: 14 }}>{saveMsg}</div>}
+
+      {/* ── Change Password ── */}
+      <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
+        <button onClick={() => setShowPw(!showPwSection)}
+          style={{ width: "100%", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "none", color: T.text, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+          <span>🔒 Change Password</span>
+          <span style={{ color: T.textTer, fontSize: 16 }}>{showPwSection ? "▲" : "▼"}</span>
+        </button>
+        {showPwSection && (
+          <div className="fade-in" style={{ padding: "0 20px 18px", borderTop: `1px solid ${T.border}` }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
+              {[
+                { label: "Current Password", val: oldPw, set: setOldPw },
+                { label: "New Password",     val: newPw, set: setNewPw },
+              ].map((f, i) => (
+                <div key={i}>
+                  <label style={{ display: "block", fontSize: 12, color: T.textSub, marginBottom: 5 }}>{f.label}</label>
+                  <input type="password" value={f.val} onChange={e => f.set(e.target.value)}
+                    style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: `1px solid ${T.borderEm}`, borderRadius: 8, background: T.bg, color: T.text, outline: "none" }}
+                    onFocus={e => { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accent}22` }}
+                    onBlur={e => { e.target.style.borderColor = T.borderEm; e.target.style.boxShadow = "none" }}
+                  />
+                </div>
+              ))}
+              <button onClick={changePassword} disabled={pwLoading}
+                style={{ padding: "10px", background: pwLoading ? T.textTer : T.text, color: T.bg === "#ffffff" ? "#fff" : T.bg, borderRadius: 8, fontSize: 13, fontWeight: 500, transition: "background 0.15s" }}>
+                {pwLoading ? "Changing..." : "Update Password"}
+              </button>
+              {pwMsg && <div style={{ fontSize: 12, color: pwMsg.includes("✅") ? T.green : T.red, textAlign: "center" }}>{pwMsg}</div>}
+            </div>
+          </div>
+        )}
+      </div>
+
+    </div>
+  )
+}
+
+
+// ─── SCREENER PAGE ────────────────────────────────────────────────
+function ScreenerPage({ T, analyzeStock, setTab }) {
+  const [filters, setFilters] = useState({
+    min_rsi    : 0,   max_rsi  : 100,
+    min_pe     : 0,   max_pe   : 9999,
+    min_1y     : -100,max_1y   : 9999,
+    min_1d     : -20, max_1d   : 20,
+    macd_signal: "any",
+    trend      : "any",
+    asset_type : "all",
+  })
+  const [results, setResults]   = useState([])
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState("")
+  const [screened, setScreened] = useState(0)
+  const [ran, setRan]           = useState(false)
+
+  const setF = (key, val) => setFilters(p => ({ ...p, [key]: val }))
+
+  const presets = [
+    { label: "🟢 Oversold Stocks",   desc: "RSI < 35, Bullish MACD",         f: { min_rsi:0, max_rsi:35, macd_signal:"bullish", trend:"any", asset_type:"stock", min_pe:0, max_pe:200, min_1y:-100, max_1y:500, min_1d:-20, max_1d:20 } },
+    { label: "🔥 Momentum Picks",    desc: "1Y > 30%, Uptrend, Bullish MACD", f: { min_1y:30, max_1y:500, trend:"up", macd_signal:"bullish", asset_type:"all", min_rsi:0, max_rsi:100, min_pe:0, max_pe:9999, min_1d:-20, max_1d:20 } },
+    { label: "💎 Value Stocks",      desc: "P/E < 20, 1Y > 10%",             f: { min_pe:1, max_pe:20, min_1y:10, max_1y:500, asset_type:"stock", min_rsi:0, max_rsi:100, macd_signal:"any", trend:"any", min_1d:-20, max_1d:20 } },
+    { label: "🚀 Crypto Momentum",   desc: "Crypto, Uptrend, 1Y > 20%",      f: { asset_type:"crypto", trend:"up", min_1y:20, max_1y:9999, min_rsi:0, max_rsi:100, macd_signal:"any", min_pe:0, max_pe:9999, min_1d:-20, max_1d:20 } },
+    { label: "📉 Overbought Alert",  desc: "RSI > 70 — possible correction",  f: { min_rsi:70, max_rsi:100, asset_type:"all", macd_signal:"any", trend:"any", min_pe:0, max_pe:9999, min_1y:-100, max_1y:500, min_1d:-20, max_1d:20 } },
+    { label: "🛡️ Stable Large Cap",  desc: "Indian stocks, Uptrend, Low RSI", f: { asset_type:"stock", trend:"up", min_rsi:30, max_rsi:60, macd_signal:"any", min_pe:0, max_pe:9999, min_1y:-100, max_1y:500, min_1d:-20, max_1d:20 } },
+  ]
+
+  const runScreener = async () => {
+    setLoading(true); setError(""); setResults([]); setRan(true)
+    try {
+      const params = new URLSearchParams({
+        ...filters,
+        min_pe : filters.min_pe  || 0,
+        max_pe : filters.max_pe  || 9999,
+      })
+      const r = await axios.get(`${API}/screener?${params}`)
+      setResults(r.data.results)
+      setScreened(r.data.screened)
+      if (r.data.results.length === 0) setError("No stocks matched your filters. Try adjusting the criteria.")
+    } catch { setError("Screener failed. Backend check karo.") }
+    finally { setLoading(false) }
+  }
+
+  const SliderRow = ({ label, minKey, maxKey, min, max, step = 1, suffix = "" }) => (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 500, color: T.textSub }}>{label}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: T.text, fontFamily: T.mono }}>
+          {filters[minKey]}{suffix} — {filters[maxKey] >= 9000 ? "∞" : filters[maxKey] + suffix}
+        </span>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input type="range" min={min} max={max} step={step} value={filters[minKey]}
+          onChange={e => setF(minKey, parseFloat(e.target.value))}
+          style={{ flex: 1, accentColor: T.accent }} />
+        <input type="range" min={min} max={max} step={step} value={filters[maxKey]}
+          onChange={e => setF(maxKey, parseFloat(e.target.value))}
+          style={{ flex: 1, accentColor: T.accent }} />
+      </div>
+    </div>
+  )
+
+  const SelectRow = ({ label, fkey, options }) => (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: T.textSub, marginBottom: 6 }}>{label}</label>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {options.map(([val, lbl]) => (
+          <button key={val} onClick={() => setF(fkey, val)}
+            style={{ padding: "5px 14px", borderRadius: 16, fontSize: 12, fontWeight: 500, border: `1px solid ${filters[fkey] === val ? T.accent : T.border}`, background: filters[fkey] === val ? T.accentBg : T.bg, color: filters[fkey] === val ? T.accent : T.textSub, cursor: "pointer", transition: "all 0.15s" }}>
+            {lbl}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="fade-in" style={{ maxWidth: 1000, margin: "0 auto", padding: "20px 20px 80px" }}>
+
+      {/* Header */}
+      <div style={{ marginBottom: 18 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 500, color: T.text, marginBottom: 4 }}>🔍 Stock Screener</h2>
+        <p style={{ fontSize: 13, color: T.textSub }}>Filter assets by RSI, P/E, returns, and trend. Covers Indian stocks, US stocks, Crypto, and Commodities.</p>
+      </div>
+
+      {/* Preset filters */}
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: T.textTer, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 10 }}>Quick Presets</div>
+        <div className="three-col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+          {presets.map((p, i) => (
+            <button key={i} onClick={() => { setFilters(p.f) }}
+              style={{ padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.bg, cursor: "pointer", textAlign: "left", transition: "all 0.15s" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.background = T.accentBg }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.background = T.bg }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: T.text, marginBottom: 2 }}>{p.label}</div>
+              <div style={{ fontSize: 11, color: T.textTer }}>{p.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="two-col" style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 14, alignItems: "start" }}>
+
+        {/* Filters panel */}
+        <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 14, padding: "18px 20px", position: "sticky", top: 70 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: T.textTer, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 16 }}>Filters</div>
+
+          <SelectRow label="Asset Type" fkey="asset_type" options={[["all","All"],["stock","Stocks"],["crypto","Crypto"],["commodity","Commodities"],["index","Indices"]]} />
+          <SelectRow label="MACD Signal" fkey="macd_signal" options={[["any","Any"],["bullish","Bullish 🟢"],["bearish","Bearish 🔴"]]} />
+          <SelectRow label="Trend" fkey="trend" options={[["any","Any"],["up","Uptrend 🟢"],["down","Downtrend 🔴"]]} />
+
+          <SliderRow label="RSI Range" minKey="min_rsi" maxKey="max_rsi" min={0} max={100} step={1} />
+          <SliderRow label="P/E Ratio" minKey="min_pe" maxKey="max_pe" min={0} max={200} step={1} />
+          <SliderRow label="1Y Return %" minKey="min_1y" maxKey="max_1y" min={-100} max={500} step={5} suffix="%" />
+          <SliderRow label="1D Change %" minKey="min_1d" maxKey="max_1d" min={-20} max={20} step={0.5} suffix="%" />
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={runScreener} disabled={loading}
+              style={{ flex: 1, padding: 12, background: loading ? T.textTer : T.accent, color: "#fff", borderRadius: 10, fontSize: 13, fontWeight: 500, transition: "background 0.15s", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              {loading ? <><ThinkDots /> Scanning...</> : "🔍 Screen →"}
+            </button>
+            <button onClick={() => { setFilters({ min_rsi:0, max_rsi:100, min_pe:0, max_pe:9999, min_1y:-100, max_1y:9999, min_1d:-20, max_1d:20, macd_signal:"any", trend:"any", asset_type:"all" }); setResults([]); setRan(false); setError("") }}
+              style={{ padding: "12px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.bgSub, color: T.textSub, fontSize: 13, cursor: "pointer", transition: "all 0.15s" }}
+              title="Reset all filters">
+              ↺
+            </button>
+          </div>
+          <div style={{ fontSize: 11, color: T.textTer, textAlign: "center", marginTop: 8 }}>~30-40 seconds · 40 symbols scanned in parallel</div>
+        </div>
+
+        {/* Results */}
+        <div>
+          {!ran && !loading && (
+            <div style={{ textAlign: "center", padding: "60px 20px", color: T.textTer }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: T.textSub, marginBottom: 6 }}>Set your filters and click Screen Stocks</div>
+              <div style={{ fontSize: 12 }}>Or pick a quick preset above</div>
+            </div>
+          )}
+
+          {loading && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[1,2,3,4,5,6].map(i => (
+                <div key={i} style={{ height: 72, background: `linear-gradient(90deg,${T.skeletonA} 25%,${T.skeletonB} 50%,${T.skeletonA} 75%)`, backgroundSize: "600px 100%", animation: "shimmer 1.4s ease infinite", borderRadius: 12 }} />
+              ))}
+              <div style={{ textAlign: "center", fontSize: 12, color: T.textSub, marginTop: 4 }}>Scanning all symbols in parallel — please wait...</div>
+            </div>
+          )}
+
+          {error && (
+            <div style={{ background: T.redBg, border: `1px solid ${T.redBd}`, borderRadius: 10, padding: "14px 16px", color: T.red, fontSize: 13 }}>❌ {error}</div>
+          )}
+
+          {results.length > 0 && (
+            <div className="fade-up">
+              <div style={{ fontSize: 12, color: T.textSub, marginBottom: 10 }}>
+                <strong style={{ color: T.accent }}>{results.length}</strong> assets matched · sorted by 1Y return
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {results.map((r, i) => {
+                  const isUp1d = r.change_1d >= 0
+                  const isUp1y = r.change_1y >= 0
+                  const rsiColor = r.rsi < 30 ? T.green : r.rsi > 70 ? T.red : T.amber
+                  const typeEmoji = { stock: "📈", crypto: "₿", commodity: "🏅", index: "📊" }[r.asset_type] || "📈"
+                  return (
+                    <div key={i} onClick={() => { setTab("stocks"); setTimeout(() => analyzeStock(r.symbol), 100) }}
+                      style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 12, padding: "12px 16px", cursor: "pointer", transition: "all 0.15s", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.boxShadow = T.shadow }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none" }}>
+
+                      {/* Rank */}
+                      <div style={{ fontSize: 12, fontWeight: 700, color: T.textTer, width: 24, textAlign: "center", flexShrink: 0 }}>#{i+1}</div>
+
+                      {/* Name + symbol */}
+                      <div style={{ flex: 1, minWidth: 120 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: T.text, display: "flex", alignItems: "center", gap: 6 }}>
+                          {typeEmoji} {r.name}
+                        </div>
+                        <div style={{ fontSize: 11, color: T.textTer, marginTop: 1 }}>{r.symbol}</div>
+                      </div>
+
+                      {/* Price */}
+                      <div style={{ textAlign: "right", minWidth: 80 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: T.text, fontFamily: T.mono }}>
+                          {r.currency === "USD" ? "$" : "₹"}{r.price?.toLocaleString("en-IN")}
+                        </div>
+                        <div style={{ fontSize: 11, color: isUp1d ? T.green : T.red, fontWeight: 500 }}>
+                          {isUp1d ? "▲" : "▼"} {Math.abs(r.change_1d).toFixed(2)}% today
+                        </div>
+                      </div>
+
+                      {/* RSI */}
+                      <div style={{ textAlign: "center", minWidth: 60 }}>
+                        <div style={{ fontSize: 10, color: T.textTer, marginBottom: 2 }}>RSI</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: rsiColor, fontFamily: T.mono }}>{r.rsi?.toFixed(1)}</div>
+                      </div>
+
+                      {/* P/E */}
+                      <div style={{ textAlign: "center", minWidth: 50 }}>
+                        <div style={{ fontSize: 10, color: T.textTer, marginBottom: 2 }}>P/E</div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: T.text, fontFamily: T.mono }}>{r.pe || "—"}</div>
+                      </div>
+
+                      {/* 1Y Return */}
+                      <div style={{ textAlign: "center", minWidth: 70 }}>
+                        <div style={{ fontSize: 10, color: T.textTer, marginBottom: 2 }}>1Y Return</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: isUp1y ? T.green : T.red, fontFamily: T.mono }}>
+                          {isUp1y ? "▲" : "▼"} {Math.abs(r.change_1y).toFixed(1)}%
+                        </div>
+                      </div>
+
+                      {/* MACD + Trend badges */}
+                      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                        <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 12, fontWeight: 600, color: r.macd === "Bullish" ? T.green : T.red, background: r.macd === "Bullish" ? T.greenBg : T.redBg, border: `1px solid ${r.macd === "Bullish" ? T.greenBd : T.redBd}` }}>
+                          {r.macd}
+                        </span>
+                        <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 12, fontWeight: 600, color: r.trend === "Uptrend" ? T.green : T.red, background: r.trend === "Uptrend" ? T.greenBg : T.redBg, border: `1px solid ${r.trend === "Uptrend" ? T.greenBd : T.redBd}` }}>
+                          {r.trend === "Uptrend" ? "↑ Up" : "↓ Down"}
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: 11, color: T.accent, flexShrink: 0 }}>Analyze →</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -1600,6 +2119,15 @@ export default function App() {
   const [sipForm, setSipForm] = useState({ monthly_investment: "5000", annual_return: "12", years: "10", target_amount: "1000000", goal_return: "12", goal_years: "10" })
   const [sipResult, setSipResult] = useState(null)
   const [sipLoading, setSipLoading] = useState(false)
+
+  // Trading style (from profile, persisted)
+  const [tradingStyle, setTradingStyle] = useState(() => {
+    try { return localStorage.getItem("fm-trading-style") || "swing" } catch { return "swing" }
+  })
+  const saveTradingStyle = (s) => {
+    setTradingStyle(s)
+    try { localStorage.setItem("fm-trading-style", s) } catch {}
+  }
 
   // Watchlist
   const [watchlist, setWatchlist] = useState(() => {
@@ -1676,13 +2204,15 @@ AI Report Summary: ${stockReport ? stockReport.substring(0, 500) + "..." : "N/A"
     } finally { setChatLoading(false) }
   }
 
-  const analyzeStock = async (sym) => {
+  const analyzeStock = async (sym, styleOverride) => {
     const s = sym || symbol; if (!s.trim()) return
+    const style = styleOverride || tradingStyle
     setSymbol(s); setSuggestions([]); setStockLoading(true)
     setStockData(null); setStockReport(""); setStockError("")
     try {
-      const r = await axios.get(`${API}/analyze/${s}`)
-      setStockData(r.data.data); setStockReport(r.data.report)
+      const r = await axios.get(`${API}/analyze/${s}?trading_style=${style}`)
+      setStockData({ ...r.data.data, market_status: r.data.market_status })
+      setStockReport(r.data.report)
     } catch { setStockError("Stock not found. Check the name or symbol and try again.") }
     finally { setStockLoading(false) }
   }
@@ -1708,7 +2238,7 @@ AI Report Summary: ${stockReport ? stockReport.substring(0, 500) + "..." : "N/A"
     finally { setSipLoading(false) }
   }
 
-  const tabs = [{ key: "home", label: "Home", icon: "🏠" }, { key: "chat", label: "AI Chat", icon: "💬" }, { key: "stocks", label: "Stocks", icon: "📊" }, { key: "news", label: "News", icon: "📰" }, { key: "compare", label: "Compare", icon: "⚖️" }, { key: "tax", label: "Tax", icon: "🧾" }, { key: "sip", label: "SIP", icon: "📈" }]
+  const tabs = [{ key: "home", label: "Home", icon: "🏠" }, { key: "chat", label: "AI Chat", icon: "💬" }, { key: "stocks", label: "Stocks", icon: "📊" }, { key: "screener", label: "Screener", icon: "🔍" }, { key: "news", label: "News", icon: "📰" }, { key: "compare", label: "Compare", icon: "⚖️" }, { key: "tax", label: "Tax", icon: "🧾" }, { key: "sip", label: "SIP", icon: "📈" }, { key: "profile", label: "Profile", icon: "👤" }]
 
   // Loading check
   if (!authChecked) {
@@ -1764,36 +2294,26 @@ AI Report Summary: ${stockReport ? stockReport.substring(0, 500) + "..." : "N/A"
 
         {/* Right controls */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* User avatar + name */}
-          <div className="desktop-only" style={{ alignItems: "center", gap: 8 }}>
-            <div style={{ width: 30, height: 30, borderRadius: "50%", background: T.accentBg, border: `1px solid ${T.accent}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: T.accent }}>
-              {authUser?.name?.charAt(0)?.toUpperCase() || "U"}
-            </div>
-            <span style={{ fontSize: 12, fontWeight: 500, color: T.textSub }}>{authUser?.name?.split(" ")[0]}</span>
-          </div>
+
           {/* Dark mode toggle */}
           <button onClick={() => setDarkMode(!darkMode)}
             title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-            style={{ width: 36, height: 20, borderRadius: 12, background: darkMode ? T.accent : T.bgTer, border: `1px solid ${T.borderEm}`, position: "relative", transition: "background 0.25s", flexShrink: 0 }}>
+            style={{ width: 36, height: 20, borderRadius: 12, background: darkMode ? T.accent : T.bgTer, border: `1px solid ${T.borderEm}`, position: "relative", transition: "background 0.25s", flexShrink: 0, cursor: "pointer" }}>
             <span style={{ position: "absolute", top: 2, left: darkMode ? 17 : 2, width: 14, height: 14, borderRadius: "50%", background: darkMode ? "#fff" : T.textSub, transition: "left 0.2s", fontSize: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {darkMode ? "🌙" : "☀️"}
             </span>
           </button>
 
-          {/* Risk profile button */}
-          {riskProfile && (
-            <button onClick={() => setShowRiskModal(true)} className="desktop-only"
-              style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 8, border: `1px solid ${T.border}`, color: T.textSub, background: T.bgSub, textTransform: "capitalize" }}>
-              {riskProfile === "conservative" ? "🛡️" : riskProfile === "moderate" ? "⚖️" : "🚀"} {riskProfile}
-            </button>
-          )}
-
-          {/* Logout */}
-          <button onClick={handleLogout} className="desktop-only"
-            style={{ fontSize: 12, padding: "5px 12px", borderRadius: 8, border: `1px solid ${T.border}`, color: T.textSub, background: T.bgSub, cursor: "pointer", transition: "all 0.15s" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.red; e.currentTarget.style.color = T.red }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textSub }}>
-            Sign out
+          {/* User pill — avatar + name, click → profile */}
+          <button className="desktop-only" onClick={() => setTab("profile")}
+            style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 12px 5px 6px", borderRadius: 20, border: `1px solid ${T.border}`, background: T.bgSub, cursor: "pointer", transition: "all 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.background = T.accentBg }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.background = T.bgSub }}>
+            <div style={{ width: 24, height: 24, borderRadius: "50%", background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+              {authUser?.name?.charAt(0)?.toUpperCase() || "U"}
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 500, color: T.text }}>{authUser?.name?.split(" ")[0]}</span>
+            <span style={{ fontSize: 10, color: T.textTer }}>▾</span>
           </button>
 
           {/* Mobile hamburger */}
@@ -1816,11 +2336,12 @@ AI Report Summary: ${stockReport ? stockReport.substring(0, 500) + "..." : "N/A"
             <button onClick={() => { setDarkMode(!darkMode); setMobileMenuOpen(false) }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 10, fontSize: 14, color: T.text, width: "100%" }}>
               <span style={{ fontSize: 20 }}>{darkMode ? "☀️" : "🌙"}</span> {darkMode ? "Light mode" : "Dark mode"}
             </button>
-            <button onClick={() => { handleLogout(); setMobileMenuOpen(false) }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 10, fontSize: 14, color: T.red, width: "100%" }}>
-              <span style={{ fontSize: 20 }}>🚪</span> Sign out ({authUser?.name})
+            <button onClick={() => { handleLogout(); setMobileMenuOpen(false) }}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 10, fontSize: 14, color: T.red, width: "100%", border: `1px solid ${T.redBd}`, background: T.redBg, marginTop: 4 }}>
+              <span style={{ fontSize: 20 }}>🚪</span> Sign out
             </button>
-            <button onClick={() => { setShowRiskModal(true); setMobileMenuOpen(false) }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 10, fontSize: 14, color: T.text, width: "100%" }}>
-              <span style={{ fontSize: 20 }}>📋</span> Risk Profile: <strong style={{ textTransform: "capitalize", marginLeft: 4 }}>{riskProfile || "not set"}</strong>
+            <button onClick={() => { setTab("profile"); setMobileMenuOpen(false) }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 10, fontSize: 14, color: T.text, width: "100%" }}>
+              <span style={{ fontSize: 20 }}>👤</span> My Profile
             </button>
           </div>
         </div>
@@ -1834,11 +2355,13 @@ AI Report Summary: ${stockReport ? stockReport.substring(0, 500) + "..." : "N/A"
       {/* ── PAGES ── */}
       {tab === "home"   && <HomePage setTab={setTab} setInput={setInput} chatInputRef={chatInputRef} T={T} watchlist={watchlist} setWatchlist={setWatchlist} analyzeStock={analyzeStock} />}
       {tab === "chat"   && <ChatPage messages={messages} input={input} setInput={setInput} loading={chatLoading} sendMessage={sendMessage} chatEndRef={chatEndRef} chatInputRef={chatInputRef} lastStockData={stockData} lastStockReport={stockReport} riskProfile={riskProfile} T={T} />}
-      {tab === "stocks" && <StocksPage symbol={symbol} setSymbol={setSymbol} suggestions={suggestions} stockData={stockData} stockReport={stockReport} stockLoading={stockLoading} stockError={stockError} analyzeStock={analyzeStock} T={T} addToWatchlist={addToWatchlist} isWatched={isWatched} />}
+      {tab === "stocks" && <StocksPage symbol={symbol} setSymbol={setSymbol} suggestions={suggestions} stockData={stockData} stockReport={stockReport} stockLoading={stockLoading} stockError={stockError} analyzeStock={analyzeStock} T={T} addToWatchlist={addToWatchlist} isWatched={isWatched} tradingStyle={tradingStyle} setTradingStyle={saveTradingStyle} />}
       {tab === "tax"    && <TaxPage taxForm={taxForm} setTaxForm={setTaxForm} taxResult={taxResult} taxLoading={taxLoading} calculateTax={calculateTax} T={T} />}
       {tab === "sip"     && <SipPage sipMode={sipMode} setSipMode={setSipMode} sipForm={sipForm} setSipForm={setSipForm} sipResult={sipResult} sipLoading={sipLoading} calculateSip={calculateSip} T={T} />}
       {tab === "news"    && <NewsPage T={T} />}
-      {tab === "compare" && <ComparePage T={T} analyzeStock={analyzeStock} setTab={setTab} />}
+      {tab === "compare"  && <ComparePage T={T} analyzeStock={analyzeStock} setTab={setTab} />}
+      {tab === "screener" && <ScreenerPage T={T} analyzeStock={analyzeStock} setTab={setTab} />}
+      {tab === "profile" && <ProfilePage authUser={authUser} T={T} watchlist={watchlist} setWatchlist={setWatchlist} analyzeStock={analyzeStock} setTab={setTab} />}
 
       {/* ── BOTTOM NAV (mobile) ── */}
       <div className="mobile-only" style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: T.navBg, backdropFilter: "blur(10px)", borderTop: `1px solid ${T.border}`, zIndex: 200 }}>
@@ -1854,7 +2377,7 @@ AI Report Summary: ${stockReport ? stockReport.substring(0, 500) + "..." : "N/A"
       {/* ── FOOTER ── */}
       <div style={{ borderTop: `1px solid ${T.border}`, padding: "14px 20px", textAlign: "center", background: T.bg, marginBottom: 60, transition: "background 0.25s" }}>
         <p style={{ fontSize: 11, color: T.textTer, lineHeight: 1.8 }}>
-          💰 FinMate AI · Built by Ajay Singh | SAU · Data via Yahoo Finance
+          💰 FinMate AI · Built by Ajay Singh | SAU · Data sourced via Yahoo Finance
         </p>
       </div>
     </div>

@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+groq
+yfinance
+python-jose[cryptography]
+bcrypt
+python-multipart
+feedparser
+python-dotenv
+pandas
+numpy
+pydantic
+psycopg2-binary
